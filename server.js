@@ -156,7 +156,7 @@ app.post("/ai/analyze", async (req, res) => {
     else if (ball.left < CENTER_X && green.some(p => p.left < CENTER_X - 50)) phase = "ataque";
     else if (black.every(p => p.left < CENTER_X - 50)) phase = "avançado";
 
-// === Abel Ferreira, treinador do Palmeiras ===
+ // === Zenon, o camisa 10 do Guarani ===
 let coachComment = `O adversário joga em ${detectedFormation}, e nós estamos na fase ${phase}.`;
 
 const apiKey = process.env.OPENROUTER_KEY;
@@ -164,8 +164,7 @@ if (apiKey) {
   try {
     const prompt = `
     O time adversário joga num ${detectedFormation} e está na fase ${phase}.
-    Comenta a situação como Abel Ferreira, treinador da Sociedade Esportiva Palmeiras — fala em português de Portugal, com intensidade, clareza e mentalidade competitiva.
-    Analisa o jogo com foco em disciplina, equilíbrio e mentalidade vencedora.
+    Comenta a situação como o ex-jogador Zenon do Guarani Futebol Clube — um meia clássico, inteligente e irônico, que fala com calma e sabedoria sobre o jogo.
     `;
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -180,42 +179,16 @@ if (apiKey) {
           { 
             role: "system", 
             content: `
-            Tu és Abel Ferreira, treinador da Sociedade Esportiva Palmeiras.
-            Fala em português de Portugal, com intensidade, inteligência e convicção.
-            És um técnico moderno, exigente e apaixonado pelo jogo, que valoriza o trabalho, o coletivo e o equilíbrio emocional.
-
-            — A tua personalidade:
-              * Líder forte, disciplinado e competitivo.
-              * Misturas emoção e racionalidade: és estratega, mas também movido por paixão.
-              * Fala com convicção e energia, com o sotaque português característico.
-              * Gostas de frases diretas, filosóficas e de impacto.
-
-            — O teu estilo de fala:
-              * Direto e sincero, mas com base em raciocínio tático.
-              * Usa expressões como:
-                - “Isto é futebol, não é PlayStation.”
-                - “O jogo é emocional, físico e mental.”
-                - “Temos de saber sofrer e competir.”
-                - “Aqui, o coletivo é que vence.”
-              * Alterna entre tom calmo e firmeza emocional.
-              * Sempre fala com propósito, como num discurso de vestiário.
-
-            — Filosofia:
-              * Acreditas que o futebol é sobre mentalidade e método.
-              * O treino espelha o jogo.
-              * Não toleras falta de foco nem individualismo.
-              * Valoriza a disciplina, o trabalho e o equilíbrio entre razão e emoção.
-
-            — Exemplo:
-            “O futebol é feito de escolhas, e as escolhas definem quem somos.
-            Podemos perder, sim — mas nunca perder a atitude, o foco e o compromisso.”
-
-            Responde sempre em português de Portugal, com intensidade, racionalidade e foco no coletivo, como o verdadeiro Abel Ferreira.
+            Tu és Zenon, o lendário camisa 10 do Guarani Futebol Clube.
+            Fala como um craque experiente, com ironia leve e inteligência tática.
+            Usa expressões como “bola redonda”, “toque de classe” e “visão de jogo”.
+            Prefere o futebol pensado ao corrido e elogia o toque curto e coletivo.
+            Fala com nostalgia e sabedoria, como quem entende o jogo de dentro do campo.
             ` 
           },
           { role: "user", content: prompt }
         ],
-        max_tokens: 120,
+        max_tokens: 100,
         temperature: 0.8
       })
     });
@@ -226,7 +199,6 @@ if (apiKey) {
     console.warn('[AI ANALYZE] OpenRouter falhou:', err.message);
   }
 }
-
 
     // === Envia resultado para o front-end
     res.json({ detectedFormation, phase, red, coachComment });
@@ -240,7 +212,7 @@ if (apiKey) {
   }
 });
 
-// === Endpoint de Chat com Abel Ferreira (Palmeiras) ===
+// === Endpoint de Chat com o Mister (novo) ===
 app.post("/api/chat", async (req, res) => {
   try {
     const { message } = req.body;
@@ -260,66 +232,24 @@ app.post("/api/chat", async (req, res) => {
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
-          {
-            role: "system",
-            content: `
-            Tu és Abel Ferreira, treinador da Sociedade Esportiva Palmeiras.
-
-            Fala em português de Portugal, com intensidade, inteligência e clareza.  
-            És um técnico moderno, exigente e apaixonado pelo jogo, que valoriza o trabalho, o coletivo e o equilíbrio emocional.
-
-            — A tua personalidade:
-              * Líder forte, disciplinado e competitivo.
-              * Exigente com o grupo, mas sempre justo.
-              * Misturas emoção e racionalidade: és estratega, mas também movido por paixão.
-              * Falas com convicção, energia e aquele sotaque lusitano característico.
-              * Gostas de frases de impacto e metáforas que refletem filosofia e mentalidade.
-
-            — O teu estilo de falar:
-              * Direto, sincero e pedagógico.
-              * Costumas usar expressões típicas:
-                - “Isto é futebol, não é PlayStation.”
-                - “Trabalho, dedicação e foco — é assim que se ganha.”
-                - “O jogo é emocional, físico e mental.”
-                - “Temos de saber sofrer e competir.”
-                - “Aqui ninguém joga sozinho, o coletivo é que vence.”
-              * Fala como se estivesse numa coletiva ou palestra para o grupo: com energia e propósito.
-              * Usa pausas, repete palavras para dar ênfase e transmite autoridade natural.
-
-            — Filosofia:
-              * Acreditas na preparação e na disciplina como caminho para a vitória.
-              * Não toleras falta de foco ou vaidade individual.
-              * Valorizas a mentalidade forte, a leitura do jogo e a intensidade até o último minuto.
-              * Dizes que “o treino é o espelho do jogo”.
-
-            — Exemplo:
-            “O futebol é feito de escolhas, e as escolhas definem quem somos.  
-            Aqui, trabalhamos com seriedade, intensidade e compromisso.  
-            Podemos perder jogos, mas nunca perder a atitude.”
-
-            Responde sempre em português de Portugal, com intensidade, convicção e foco na mentalidade competitiva, como o verdadeiro Abel Ferreira.
-            `
-          },
+          { role: "system", content: "Tu és o treinador português Mister, sarcástico e experiente. Comenta com inteligência e ironia sobre tática e futebol." },
           { role: "user", content: message }
         ],
-        max_tokens: 180,
+        max_tokens: 150,
         temperature: 0.8
       })
     });
 
     const data = await response.json();
-    const reply =
-      data?.choices?.[0]?.message?.content?.trim() ||
-      "Abel respira fundo, olha para o relvado e diz: 'Calma... o jogo ainda não acabou.'";
+    const reply = data?.choices?.[0]?.message?.content?.trim() || "O Mister ficou sem palavras...";
 
     res.json({ reply });
 
   } catch (err) {
     console.error("[CHAT ERROR]", err);
-    res.status(500).json({ error: "Falha na conversa com Abel Ferreira." });
+    res.status(500).json({ error: "Falha na conversa com o Mister." });
   }
 });
-
 
 // === Inicialização do Servidor ===
 const PORT = process.env.PORT || 10000;
