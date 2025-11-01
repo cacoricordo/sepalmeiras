@@ -327,15 +327,50 @@ function updateTacticalStatus(info) {
 }
 
 
-function showNotification(msg, bg="#33aaff"){
+function showNotification(msg, bg = "#33aaff") {
   const n = document.getElementById('ai-notification');
-  n.textContent = msg;
+  if (!n) return;
+
+  // cria o conteúdo com botão de fechar
+  n.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+      <span style="flex:1;font-size:0.8em;line-height:1.4;">${msg}</span>
+      <button id="close-notif-btn"
+        style="
+          background:transparent;
+          border:none;
+          color:#fff;
+          font-size:1.1em;
+          font-weight:bold;
+          cursor:pointer;
+          line-height:1;
+        "
+        title="Fechar">×</button>
+    </div>
+  `;
+
   n.style.background = bg;
   n.style.display = 'block';
   n.style.opacity = '1';
-  setTimeout(()=>{ n.style.opacity = '0'; }, 17500);
-  setTimeout(()=>{ n.style.display = 'none'; }, 18500);
+  n.style.fontSize = '0.8em';  // fonte menor
+  n.style.padding = '12px 20px';  // mais compacto
+
+  // botão de fechar
+  const closeBtn = document.getElementById('close-notif-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      n.style.opacity = '0';
+      setTimeout(() => (n.style.display = 'none'), 500);
+    });
+  }
+
+  // duração aumentada (40 s)
+  clearTimeout(n.timerFade);
+  clearTimeout(n.timerHide);
+  n.timerFade = setTimeout(() => { n.style.opacity = '0'; }, 39000);
+  n.timerHide = setTimeout(() => { n.style.display = 'none'; }, 40000);
 }
+
 
 document.getElementById('ai-analise-btn').addEventListener('click', async function(){
   const btn = this;
@@ -369,7 +404,7 @@ document.getElementById('ai-analise-btn').addEventListener('click', async functi
     // 🔴 Move o time
     if (data.red) setPositions(data.red);
 
-    // 💬 Comentário do Mister
+    // 💬 Comentário do Abel
     if (data.coachComment)
       showNotification('🧠 ' + data.coachComment, "#0066cc");
 
@@ -545,7 +580,7 @@ document.getElementById('ai-analise-btn').addEventListener('click', async functi
   aiBtn.addEventListener('click', async function() {
     aiBtn.disabled = true;
     aiBtn.textContent = "Analisando... ⚙️";
-    notify("🤖 O Mister está avaliando o adversário...", 3000);
+    notify("🤖 O Abel está avaliando o adversário...", 3000);
 
     try {
       const green = getPositions('circle'); // time verde (IDs 13–22)
@@ -576,7 +611,7 @@ document.getElementById('ai-analise-btn').addEventListener('click', async functi
 
       if (data.coachComment) {
         setTimeout(() => {
-          notify(`🎙️ Mister: ${data.coachComment}`, 7000);
+          notify(`🎙️ Abel: ${data.coachComment}`, 7000);
         }, 1000);
       }
 
@@ -627,12 +662,12 @@ document.addEventListener("fullscreenchange", () => {
   display:flex;flex-direction:column;overflow:hidden;z-index:10001;
   font-family:'Segoe UI',sans-serif;font-size:14px;">
 <div id="chat-header" style="background:#222;padding:10px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;color:#fff;">
-  <img src="../../assets/escudo-sepalmeiras.png" alt="Abel Ferreira" style="width:24px;height:24px;border-radius:50%;">
+  <img src="img/escudo-sepalmeiras.png" alt="Abel Ferreira" style="width:24px;height:24px;border-radius:50%;">
   Abel Ferreira
 </div>
   <div id="chat-body" style="flex:1;overflow-y:auto;padding:10px;display:none;"></div>
   <div id="chat-input-area" style="display:none;border-top:1px solid #333;padding:6px;gap:4px;">
-    <input id="chat-input" type="text" placeholder="Fala com o mister..." 
+    <input id="chat-input" type="text" placeholder="Fala com o Abel..." 
       style="flex:1;padding:6px;border:none;border-radius:6px;font-size:14px;">
     <button id="chat-send" style="background:#0066cc;color:#fff;border:none;
       border-radius:6px;padding:6px 10px;cursor:pointer;">Enviar</button>
@@ -715,9 +750,9 @@ chatSend.addEventListener("click", async ()=>{
          })
     });
         const data = await res.json();
-        appendMessage("bot", data.reply || "O mister ficou em silêncio...");
+        appendMessage("bot", data.reply || "O Abel ficou em silêncio...");
     } catch(e){
-        appendMessage("bot","Erro de comunicação com o mister.");
+        appendMessage("bot","Erro de comunicação com o Abel.");
         console.error(e);
     }
 });
@@ -753,7 +788,7 @@ chatInput.addEventListener("keydown", (e)=>{
       }
     }
 
-    // Mostra a fala do Mister
+    // Mostra a fala do Abel
     if (data.coachComment) {
       const n = document.getElementById("ai-notification");
       if (n) {

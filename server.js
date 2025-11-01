@@ -324,7 +324,7 @@ app.post("/api/chat", async (req, res) => {
 // === Inicialização do Servidor ===
 const PORT = process.env.PORT || 10000;
 httpServer.listen(PORT, () =>
-  console.log(`🚀 AI Tática 4.2.2-FIX (WebSocket + Mister) rodando na porta ${PORT}`)
+  console.log(`🚀 AI Tática 4.2.2-FIX (WebSocket + Abel Ferreira) rodando na porta ${PORT}`)
 );
 
 
