@@ -662,7 +662,7 @@ document.addEventListener("fullscreenchange", () => {
   display:flex;flex-direction:column;overflow:hidden;z-index:10001;
   font-family:'Segoe UI',sans-serif;font-size:14px;">
 <div id="chat-header" style="background:#222;padding:10px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;color:#fff;">
-  <img src="/img/escudo-sepalmeiras.png" alt="Abel Ferreira" style="width:24px;height:24px;border-radius:50%;">
+  <img src="./img/escudo-sepalmeiras.png" alt="Abel Ferreira" style="width:24px;height:24px;border-radius:50%;">
   Abel Ferreira
 </div>
   <div id="chat-body" style="flex:1;overflow-y:auto;padding:10px;display:none;"></div>
@@ -787,17 +787,6 @@ chatInput.addEventListener("keydown", (e)=>{
         }
       }
     }
-
-    // Mostra a fala do Abel
-    if (data.coachComment) {
-      const n = document.getElementById("ai-notification");
-      if (n) {
-        n.textContent = `🎙️ ${data.coachComment}`;
-        n.style.display = "block";
-        setTimeout(() => (n.style.display = "none"), 5000);
-      }
-    }
-  });
 
 // === Sincroniza jogadores em tempo real ===
 socket.on("player-move", (data) => {
