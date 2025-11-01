@@ -2,11 +2,11 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Guarani FC, Campo Tático</title>
+    <title>SE Palmeiras, Campo Tático</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta property="og:title" content="Guarani FC, Campo Tático">
-    <meta property="og:description" content="Campeão Invicto na Copa do Brasil de 2025 no Futebol de 7">
-    <meta property="og:image" content="https://www.osinvictos.com.br/dashboard/guaranifc/guaranifc-previa.png">
+    <meta property="og:title" content="SE Palmeiras, Campo Tático">
+    <meta property="og:description" content="Campeão Invicto em 1960">
+    <meta property="og:image" content="https://www.osinvictos.com.br/dashboard/sepalmeiras/sepalmeiras-previa.png">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
@@ -86,7 +86,7 @@
 const SERVER_URL = window.location.origin;
 
 /* ===== CORE: movimento, socket e AI analyze ===== */
-const socket = io("https://guaranifc.onrender.com", {
+const socket = io("https://sepalmeiras.onrender.com", {
   transports: ["websocket", "polling"]
 });
 window.socket = socket;
@@ -346,7 +346,7 @@ document.getElementById('ai-analise-btn').addEventListener('click', async functi
     const green = collectGreenPositions();
     const ball = getBall();
 
-    const res = await fetch(`https://guaranifc.onrender.com/ai/analyze`, {
+    const res = await fetch(`https://sepalmeiras.onrender.com/ai/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ green, ball })
@@ -627,8 +627,8 @@ document.addEventListener("fullscreenchange", () => {
   display:flex;flex-direction:column;overflow:hidden;z-index:10001;
   font-family:'Segoe UI',sans-serif;font-size:14px;">
 <div id="chat-header" style="background:#222;padding:10px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;color:#fff;">
-  <img src="../../assets/escudo-guaranifc.png" alt="Zenon" style="width:24px;height:24px;border-radius:50%;">
-  Zenon (IA)
+  <img src="../../assets/escudo-sepalmeiras.png" alt="Abel Ferreira" style="width:24px;height:24px;border-radius:50%;">
+  Abel Ferreira
 </div>
   <div id="chat-body" style="flex:1;overflow-y:auto;padding:10px;display:none;"></div>
   <div id="chat-input-area" style="display:none;border-top:1px solid #333;padding:6px;gap:4px;">
@@ -688,7 +688,7 @@ chatHeader.addEventListener("click", () => {
 // ----------------------------------------------------
 // 3. Funções de Chat e API (Permanece quase igual)
 // ----------------------------------------------------
-const url_render = 'https://guaranifc.onrender.com';
+const url_render = 'https://sepalmeiras.onrender.com';
 
 function appendMessage(sender, text){
     // ... (sua função appendMessage)
@@ -707,7 +707,7 @@ chatSend.addEventListener("click", async ()=>{
     appendMessage("user", message);
     chatInput.value = "";
     try {
-        const res = await fetch(`https://guaranifc.onrender.com/api/chat`, {
+        const res = await fetch(`https://sepalmeiras.onrender.com/api/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
