@@ -51,7 +51,7 @@ const CENTER_X = FIELD_WIDTH / 2;
 // === Detecta formação ===
 function detectFormationAdvanced(players) {
   if (!players || players.length < 8) return "4-3-3";
-  const RADIUS = 100;
+  const RADIUS = 45;
   const clusters = [];
 
   function findCluster(px, py) {
