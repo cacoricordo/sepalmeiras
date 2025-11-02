@@ -51,7 +51,8 @@ const CENTER_X = FIELD_WIDTH / 2;
 // === Detecta formação ===
 function detectFormationAdvanced(players) {
   if (!players || players.length < 8) return "4-3-3";
-  const RADIUS = 45;
+  const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));
+  const RADIUS = spreadX < 250 ? 50 : 100;
   const clusters = [];
 
   function findCluster(px, py) {
@@ -178,16 +179,66 @@ app.post("/ai/analyze", async (req, res) => {
     const players = black.length ? black : green;
     if (!players.length) return res.status(400).json({ error: "Nenhum jogador recebido" });
 
+    // === detecção de formação ===
     const detectedFormation = detectFormationAdvanced(players);
     const { red } = buildRedFromFormation(detectedFormation, ball);
 
-    const coachComment = `O adversário joga num ${detectedFormation}. Vamos ajustar a pressão e o bloco conforme o contexto.`;    
+    // === prepara análise tática ===
+    const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));
+    const spreadY = Math.max(...players.map(p => p.top)) - Math.min(...players.map(p => p.top));
+    const bloco = spreadX < 250 ? "baixo" : spreadX < 350 ? "médio" : "alto";
+    const compactacao = spreadY < 160 ? "curta" : spreadY < 250 ? "média" : "larga";
+
+    const apiKey = process.env.OPENROUTER_KEY;
+    let coachComment = `O adversário joga num ${detectedFormation}, bloco ${bloco}, compactação ${compactacao}.`;
+
+    if (apiKey) {
+      try {
+        const prompt = `
+        O adversário está disposto num ${detectedFormation}, com bloco ${bloco} e compactação ${compactacao}.
+        Analisa taticamente como Abel Ferreira, treinador do Palmeiras.
+        Fala em português de Portugal, com intensidade e clareza.
+        Observa as linhas, a mentalidade e possíveis ajustes de pressão e amplitude.
+        `;
+
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: `
+                Tu és Abel Ferreira, treinador da Sociedade Esportiva Palmeiras.
+                Fala com mentalidade vencedora, intensidade e raciocínio tático.
+                Analisa as formações, a pressão, e o equilíbrio entre blocos.
+                `
+              },
+              { role: "user", content: prompt }
+            ],
+            max_tokens: 180,
+            temperature: 0.8
+          })
+        });
+
+        const data = await response.json();
+        coachComment = data?.choices?.[0]?.message?.content || coachComment;
+      } catch (err) {
+        console.error("Erro ao chamar OpenAI:", err);
+      }
+    }
+
     res.json({ detectedFormation, red, coachComment });
   } catch (err) {
     console.error("Erro /ai/analyze", err);
-    res.status(500).json({ error: "Erro interno" });
+    res.status(500).json({ error: "Erro interno na análise" });
   }
 });
+
 
 // === Chat do Abel Ferreira ===
 app.post("/api/chat", async (req, res) => {
