@@ -350,6 +350,61 @@ socket.on("update_circle", (data) => {
     }
   }
 
+  // === Pop-up do Abel ===
+  function showAbelCommentPopup(commentText) {
+    const old = document.getElementById("abel-comment-popup");
+    if (old) old.remove();
+
+    const popup = document.createElement("div");
+    popup.id = "abel-comment-popup";
+    popup.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <strong style="font-size:11px;">🎙️ Abel Ferreira</strong>
+        <button id="close-abel-popup"
+          style="background:transparent;border:none;color:#fff;font-size:14px;font-weight:bold;cursor:pointer;margin-left:8px;line-height:1;">×</button>
+      </div>
+      <div style="font-size:9px;line-height:1.4;text-align:justify;color:#fff;">${commentText}</div>
+    `;
+
+    Object.assign(popup.style, {
+      position: "fixed",
+      top: "80px",
+      right: "20px",
+      background: "rgba(0,102,204,0.95)",
+      border: "1px solid rgba(255,255,255,0.2)",
+      borderRadius: "10px",
+      boxShadow: "0 0 10px rgba(0,0,0,0.4)",
+      padding: "14px 18px",
+      color: "#fff",
+      fontFamily: "'Segoe UI', sans-serif",
+      zIndex: "10003",
+      width: "240px",
+      maxWidth: "90vw",
+      opacity: "0",
+      transition: "opacity 0.6s ease"
+    });
+
+    document.body.appendChild(popup);
+    requestAnimationFrame(() => popup.style.opacity = "1");
+
+    document.getElementById("close-abel-popup").addEventListener("click", () => {
+      popup.style.opacity = "0";
+      setTimeout(() => popup.remove(), 500);
+    });
+  }
+
+  // === Detecta posse de bola ===
+  function detectBallPossession(green, ball) {
+    let minDist = Infinity;
+    for (const p of green) {
+      const dx = p.left - ball.left;
+      const dy = p.top - ball.top;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < minDist) minDist = dist;
+    }
+    return minDist < 50 ? "verde" : "preto";
+  }
+
   // === Botão da Análise IA ===
   const aiBtn = document.getElementById('ai-analise-btn');
   aiBtn.addEventListener('click', async function() {
@@ -357,33 +412,14 @@ socket.on("update_circle", (data) => {
     aiBtn.textContent = "Analisando... ⚙️";
     notify("🤖 O Abel está avaliando o adversário...", 3000);
 
-function detectBallPossession(green, ball) {
-  let minDist = Infinity;
-  let closestId = null;
-
-  for (const p of green) {
-    const dx = p.left - ball.left;
-    const dy = p.top - ball.top;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < minDist) {
-      minDist = dist;
-      closestId = p.id;
-    }
-  }
-
-  // se o jogador mais próximo está a menos de 50px, bola está em posse do Palmeiras
-  return minDist < 50 ? "verde" : "preto";
-}
-
-
     try {
       // coleta posições
-      const green = getPositions('circle'); // pega circle2..11 (adversário) N.B.: se sua versão usa collectGreenPositions(), ajuste
-      const black = getPositions('black');  // se sua função getPositions('black') retornar vazio, troque por collectBlackPositions()
+      const green = getPositions('circle'); // Palmeiras
+      const black = getPositions('red');    // Adversário (ajuste prefixo se necessário)
       const ball = getBall();
       const possession = detectBallPossession(green, ball); // "verde" | "preto"
 
-      // envia POSSESSION também (importante)
+      // envia POSSESSION também
       const res = await fetch(`https://sepalmeiras.onrender.com/ai/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -393,30 +429,23 @@ function detectBallPossession(green, ball) {
       if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
       const data = await res.json();
 
-      // === Retornos da IA ===
       if (data.detectedFormation) {
         notify(`🧠 Esquema adversário: ${data.detectedFormation}`, 4000);
       }
 
       // ===== AÇÃO 4: se Palmeiras em posse, avançar time verde localmente =====
-      // attackAdvance: número de pixels para avançar (ajuste conforme visual)
       const attackAdvance = possession === "verde" ? 50 : 0;
 
       if (data.red) {
-        // data.red tem posições táticas sugeridas para os IDs do time (id = 13..22 normalmente)
-        // Primeiro animamos a formação sugerida pela IA
         animateTeam('circle', data.red);
 
-        // Em seguida, aplicamos um avanço local ao time VERDE (IDs 13..22)
         if (attackAdvance > 0) {
           const advanced = data.red.map(p => {
-            // se p.id é do time verde (13..22), avança no eixo X (direita)
             let newLeft = p.left + attackAdvance;
-            // limita dentro do campo (assume FIELD_WIDTH no servidor = 600)
             newLeft = Math.max(10, Math.min(newLeft, (window.innerWidth || 600) - 40));
             return { id: p.id, left: newLeft, top: p.top };
           });
-          // anima novamente para aplicar o avanço ofensivo
+
           setTimeout(() => animateTeam('circle', advanced), 300);
           notify("🟢 Palmeiras avança em ataque coordenado!", 3000);
         } else {
@@ -424,20 +453,23 @@ function detectBallPossession(green, ball) {
         }
       }
 
+      // === Pop-up do Abel 15s depois ===
       if (data.coachComment) {
         setTimeout(() => {
-          notify(`🎙️ Abel: ${data.coachComment}`, 7000);
-        }, 1000);
+          showAbelCommentPopup(data.coachComment);
+        }, 15000);
       }
+
     } catch (err) {
       console.error("AI analyze error:", err);
       notify("❌ Erro na análise da IA! Verifique conexão.", 5000);
+    } finally {
+      aiBtn.disabled = false;
+      aiBtn.textContent = "AI Análise";
     }
-
-    aiBtn.disabled = false;
-    aiBtn.textContent = "AI Análise";
   });
 </script>
+
 
 <!-- Chat markup + script (mantido igual ao seu original) -->
 <!-- ... (se preferir, mantenho o bloco de chat original sem alterações) -->
