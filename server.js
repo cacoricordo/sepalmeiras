@@ -93,13 +93,17 @@ function detectFormationAdvanced(players) {
   const counts = clusters.map(c => c.players.length);
   const signature = counts.join("-");
 
-  if (signature.startsWith("4-4-2")) return "4-4-2";
-  if (signature.startsWith("3-5-2")) return "3-5-2";
-  if (signature.startsWith("4-2-3-1")) return "4-2-3-1";
-  if (signature.startsWith("3-4-3")) return "3-4-3";
-  if (signature.startsWith("4-3-3")) return "4-3-3";
+if (signature.includes("4-4-2")) return "4-4-2";
+if (signature.includes("3-5-2")) return "3-5-2";
+if (signature.includes("4-2-3-1")) return "4-2-3-1";
+if (signature.includes("3-4-3")) return "3-4-3";
+if (signature.includes("4-3-3")) return "4-3-3";
 
-  return "4-4-2";
+// fallback baseado na média da largura dos clusters
+if (clusters.length <= 3) return "3-5-2";
+if (clusters.length === 4) return "4-4-2";
+if (clusters.length >= 5) return "4-3-3";
+return "4-4-2";
 }
 
 // === Formações base ===
@@ -153,96 +157,165 @@ app.post("/ai/analyze", async (req, res) => {
     const { green = [], black = [], ball = {} } = req.body;
     console.log("[AI ANALYZE] Recebi:", { greenCount: green.length, blackCount: black.length, ball });
 
-    const detectedFormation = detectFormationAdvanced(black.length ? black : green);
-    const { red } = buildRedFromFormation(detectedFormation, ball);
+    const players = black.length ? black : green;
+    if (!players.length) return res.status(400).json({ error: "Nenhum jogador recebido" });
 
-    // === Fase simples ===
+    // === 📊 Cálculos geométricos base ===
+    const xs = players.map(p => p.left);
+    const ys = players.map(p => p.top);
+    const avgX = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const avgY = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const spreadX = Math.max(...xs) - Math.min(...xs);
+    const spreadY = Math.max(...ys) - Math.min(...ys);
+    const CENTER_Y = FIELD_HEIGHT / 2;
+
+    // === 🧩 Inferência tática básica ===
+    let detectedFormation = detectFormationAdvanced(players);
+
+    let bloco = "baixo";
+    if (avgX > 250 && avgX <= 350) bloco = "médio";
+    else if (avgX > 350) bloco = "alto";
+
+    let compactacao = "curta";
+    if (spreadX > 220) compactacao = "média";
+    if (spreadX > 300) compactacao = "larga";
+
+    const linhaMedia = avgX < 200 ? "recuada" : avgX < 350 ? "intermediária" : "avançada";
+
+    let pressao = "baixa";
+    if (avgX > CENTER_X && compactacao !== "larga") pressao = "alta";
+    else if (avgX > CENTER_X * 0.8) pressao = "média";
+
+    // === ⚖️ Análise de assimetria tática ===
+    const topPlayers = players.filter(p => p.top < CENTER_Y);
+    const bottomPlayers = players.filter(p => p.top > CENTER_Y);
+    const diff = Math.abs(topPlayers.length - bottomPlayers.length);
+
+    let assimetria = "simétrica";
+    if (diff >= 2) {
+      assimetria = topPlayers.length > bottomPlayers.length ? "ataque pela direita" : "ataque pela esquerda";
+    } else if (spreadY > 180) {
+      assimetria = "muito espaçado verticalmente";
+    }
+
+    // === 🧮 Superioridade numérica ===
+    // Calcula se há mais jogadores próximos à bola
+    const nearBall = players.filter(p => {
+      const dx = Math.abs(p.left - ball.left);
+      const dy = Math.abs(p.top - ball.top);
+      return Math.sqrt(dx * dx + dy * dy) < 80;
+    });
+    const superioridade = nearBall.length >= 3
+      ? "superioridade numérica"
+      : nearBall.length === 2
+      ? "igualdade local"
+      : "inferioridade próxima da bola";
+
+    // === 🔺 Triângulos de apoio ===
+    function detectTriangles(players) {
+      let triangles = 0;
+      for (let i = 0; i < players.length; i++) {
+        for (let j = i + 1; j < players.length; j++) {
+          for (let k = j + 1; k < players.length; k++) {
+            const a = players[i], b = players[j], c = players[k];
+            const area =
+              Math.abs(a.left * (b.top - c.top) + b.left * (c.top - a.top) + c.left * (a.top - b.top)) / 2;
+            if (area > 100 && area < 2000) triangles++;
+          }
+        }
+      }
+      return triangles;
+    }
+    const triangulos = detectTriangles(players);
+    const apoioTatico =
+      triangulos > 8 ? "excelente formação de triângulos de apoio" :
+      triangulos > 4 ? "boa conexão entre setores" :
+      "poucas linhas de passe ativas";
+
+    // === 🎯 Determinar fase do jogo ===
     let phase = "neutro";
     if (ball.left > CENTER_X && black.some(p => p.left > CENTER_X - 50)) phase = "defesa";
     else if (ball.left < CENTER_X && green.some(p => p.left < CENTER_X - 50)) phase = "ataque";
     else if (black.every(p => p.left < CENTER_X - 50)) phase = "avançado";
 
-// === Abel Ferreira, treinador do Palmeiras ===
-let coachComment = `O adversário joga em ${detectedFormation}, e nós estamos na fase ${phase}.`;
+    // === 🔴 Cria o time adversário (para visual) ===
+    const { red } = buildRedFromFormation(detectedFormation, ball);
 
-const apiKey = process.env.OPENROUTER_KEY;
-if (apiKey) {
-  try {
-    const prompt = `
-    O time adversário joga num ${detectedFormation} e está na fase ${phase}.
-    Comenta a situação como Abel Ferreira, treinador da Sociedade Esportiva Palmeiras — fala em português de Portugal, com intensidade, clareza e mentalidade competitiva.
-    Analisa o jogo com foco em disciplina, equilíbrio e mentalidade vencedora.
+    // === 🧩 Monta relatório tático completo ===
+    const tacticalSummary = `
+    Formação: ${detectedFormation}
+    Bloco: ${bloco}
+    Compactação: ${compactacao}
+    Linha média: ${linhaMedia}
+    Pressão: ${pressao}
+    Assimetria: ${assimetria}
+    Superioridade: ${superioridade}
+    Triângulos: ${apoioTatico}
+    Fase: ${phase}
     `;
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { 
-            role: "system", 
-            content: `
-            Tu és Abel Ferreira, treinador da Sociedade Esportiva Palmeiras.
-            Fala em português de Portugal, com intensidade, inteligência e convicção.
-            És um técnico moderno, exigente e apaixonado pelo jogo, que valoriza o trabalho, o coletivo e o equilíbrio emocional.
+    // === 🧠 Treinador comenta ===
+    const apiKey = process.env.OPENROUTER_KEY;
+    let coachComment = `O adversário joga em ${detectedFormation}, com bloco ${bloco}, compactação ${compactacao}, linha ${linhaMedia}, pressão ${pressao}, ${assimetria}, e ${superioridade}. Observa-se ${apoioTatico}. Estamos na fase ${phase}.`;
 
-            — A tua personalidade:
-              * Líder forte, disciplinado e competitivo.
-              * Misturas emoção e racionalidade: és estratega, mas também movido por paixão.
-              * Fala com convicção e energia, com o sotaque português característico.
-              * Gostas de frases diretas, filosóficas e de impacto.
+    if (apiKey) {
+      try {
+        const prompt = `
+        ${tacticalSummary}
+        Fala como Abel Ferreira, treinador do Palmeiras.
+        Faz uma análise emocional, racional e tática.
+        Destaca a mentalidade, equilíbrio e leitura de jogo.
+        `;
 
-            — O teu estilo de fala:
-              * Direto e sincero, mas com base em raciocínio tático.
-              * Usa expressões como:
-                - “Isto é futebol, não é PlayStation.”
-                - “O jogo é emocional, físico e mental.”
-                - “Temos de saber sofrer e competir.”
-                - “Aqui, o coletivo é que vence.”
-              * Alterna entre tom calmo e firmeza emocional.
-              * Sempre fala com propósito, como num discurso de vestiário.
-
-            — Filosofia:
-              * Acreditas que o futebol é sobre mentalidade e método.
-              * O treino espelha o jogo.
-              * Não toleras falta de foco nem individualismo.
-              * Valoriza a disciplina, o trabalho e o equilíbrio entre razão e emoção.
-
-            — Exemplo:
-            “O futebol é feito de escolhas, e as escolhas definem quem somos.
-            Podemos perder, sim — mas nunca perder a atitude, o foco e o compromisso.”
-
-            Responde sempre em português de Portugal, com intensidade, racionalidade e foco no coletivo, como o verdadeiro Abel Ferreira.
-            ` 
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
           },
-          { role: "user", content: prompt }
-        ],
-        max_tokens: 120,
-        temperature: 0.8
-      })
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: `
+                Tu és Abel Ferreira, treinador da Sociedade Esportiva Palmeiras.
+                Fala em português de Portugal com intensidade e clareza.
+                Dá uma leitura tática completa: mentalidade, organização, e reação emocional.
+                `
+              },
+              { role: "user", content: prompt }
+            ],
+            max_tokens: 180,
+            temperature: 0.8
+          })
+        });
+
+        const data = await response.json();
+        coachComment = data?.choices?.[0]?.message?.content || coachComment;
+      } catch (err) {
+        console.error("❌ Erro ao consultar OpenAI:", err);
+      }
+    }
+
+    // === ✅ Resposta final ===
+    res.json({
+      detectedFormation,
+      bloco,
+      compactacao,
+      linhaMedia,
+      pressao,
+      assimetria,
+      superioridade,
+      apoioTatico,
+      phase,
+      coachComment,
+      red
     });
 
-    const data = await response.json();
-    coachComment = data?.choices?.[0]?.message?.content?.trim() || coachComment;
   } catch (err) {
-    console.warn('[AI ANALYZE] OpenRouter falhou:', err.message);
-  }
-}
-
-
-    // === Envia resultado para o front-end
-    res.json({ detectedFormation, phase, red, coachComment });
-
-    // 🔁 Opcional: envia pelo WebSocket também
-    io.emit("tactical-analysis", { detectedFormation, phase, red, coachComment });
-
-  } catch (err) {
-    console.error("[AI ANALYZE ERROR]", err);
-    res.status(500).json({ error: "Erro interno na IA" });
+    console.error("❌ Erro geral no /ai/analyze:", err);
+    res.status(500).json({ error: "Erro interno na análise tática" });
   }
 });
 
