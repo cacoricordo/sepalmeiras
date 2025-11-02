@@ -4,12 +4,15 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { fileURLToPath } from "url";
+import path from "path";
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // === Servidor HTTP e WebSocket ===
 const app = express();
@@ -24,17 +27,32 @@ const io = new Server(httpServer, {
   }
 });
 
+// === SOCKET.IO HANDLERS ===
 io.on("connection", (socket) => {
-  console.log("🔌 Cliente conectado");
+  console.log(`🔌 Cliente conectado: ${socket.id}`);
 
-  socket.on("player-move", (data) => socket.broadcast.emit("player-move", data));
-  socket.on("ball-move", (data) => socket.broadcast.emit("ball-move", data));
-  socket.on("disconnect", () => console.log("❌ Cliente saiu"));
+  // Movimento dos jogadores
+  socket.on("player-move", (data) => {
+    if (data && data.id) socket.broadcast.emit("player-move", data);
+  });
+
+  // Movimento da bola
+  socket.on("ball-move", (data) => {
+    if (data && data.id) socket.broadcast.emit("ball-move", data);
+  });
+
+  // Desenhos táticos (Pen Mode Pro Sync)
+  socket.on("path_draw", (data) => {
+    if (data && Array.isArray(data.path) && data.path.length > 1) {
+      console.log(`✏️  Traço recebido de ${socket.id} (${data.path.length} pontos)`);
+      socket.broadcast.emit("path_draw", data);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`❌ Cliente saiu: ${socket.id}`);
+  });
 });
-
-// === Caminhos absolutos ===
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // === Servir frontend ===
 app.use(express.static(__dirname));
