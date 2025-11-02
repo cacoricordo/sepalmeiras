@@ -86,15 +86,13 @@
   <button id="pen-path-btn" style="position:fixed;top:330px;left:302px;z-index:10000;">✎ Desenho Tático</button>
 
 <script>
-
-/* ===== CORE: movimento, socket e AI analyze ===== */
+/* ===== CORE: movimento, socket, física e AI analyze ===== */
 const socket = io("https://sepalmeiras.onrender.com", {
   transports: ["websocket", "polling"]
 });
 window.socket = socket;
 
 // === Utilitário: throttle ===
-// limita quantas vezes por segundo um evento pode ser enviado
 function throttle(fn, delay) {
   let last = 0;
   return (...args) => {
@@ -110,13 +108,14 @@ const circles = {};
 const dragState = {};
 let activeId = null;
 
+// === Inicializa círculos (jogadores) ===
 for (let i = 1; i <= 24; i++) {
   const el = document.getElementById("circle" + i);
   circles[i] = el;
   dragState[i] = { dragging: false, offsetX: 0, offsetY: 0 };
   if (!el) continue;
-  el.style.position = el.style.position || 'absolute';
-  el.style.zIndex = '20';
+  el.style.position = el.style.position || "absolute";
+  el.style.zIndex = "20";
 
   el.addEventListener("mousedown", (e) => {
     dragState[i].dragging = true;
@@ -136,13 +135,133 @@ for (let i = 1; i <= 24; i++) {
   }, { passive: false });
 }
 
+// === Controle de fala global ===
+let lastSpoken = {};
+
+// === Física da bola ===
+const emitBallMove = throttle((id, left, top) => {
+  socket.emit("ball-move", { id, left, top });
+}, 50);
+
+const ball = document.getElementById("circle24");
+
+// === Detecção de colisão ===
+function checkCollision(playerEl, ballEl) {
+  const pr = playerEl.getBoundingClientRect();
+  const br = ballEl.getBoundingClientRect();
+  const dx = pr.left - br.left;
+  const dy = pr.top - br.top;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  return distance < 30;
+}
+
+/* ===== MOVIMENTO, COLISÃO E FÍSICA AVANÇADA (FIFA MODE) ===== */
+
+let lastSpoken = {}; // cooldown das falas
+let ballVelocity = { x: 0, y: 0 }; // vetor de velocidade da bola
+let ballMoving = false;
+
+// === Detecta colisão ===
+function checkCollision(playerEl, ballEl) {
+  const pr = playerEl.getBoundingClientRect();
+  const br = ballEl.getBoundingClientRect();
+  const dx = pr.left - br.left;
+  const dy = pr.top - br.top;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  return distance < 30;
+}
+
+// === Fala o número do jogador ===
+function speakPlayerNumber(playerId) {
+  const number = playerId.replace("circle", "");
+  const utter = new SpeechSynthesisUtterance("Jogador " + number);
+  utter.lang = "pt-BR";
+  utter.rate = 1.0;
+  const voices = speechSynthesis.getVoices();
+  const voice = voices.find(v => v.lang === "pt-BR" && v.name.includes("Luciana"));
+  if (voice) utter.voice = voice;
+  window.speechSynthesis.speak(utter);
+}
+window.speechSynthesis.onvoiceschanged = () => {};
+
+// === Função de movimento e impacto ===
 function moveElement(id, x, y) {
   const el = circles[id];
-  if (el) {
-    el.style.left = x + "px";
-    el.style.top = y + "px";
+  if (!el) return;
+
+  const oldX = parseFloat(el.style.left || 0);
+  const oldY = parseFloat(el.style.top || 0);
+
+  el.style.left = x + "px";
+  el.style.top = y + "px";
+
+  const ball = document.getElementById("circle24");
+  if (!ball) return;
+
+  // detecta colisão jogador-bola
+  if (checkCollision(el, ball)) {
+    const now = Date.now();
+
+    // fala uma vez por segundo
+    if (!lastSpoken[id] || now - lastSpoken[id] > 1000) {
+      speakPlayerNumber("circle" + id);
+      lastSpoken[id] = now;
+    }
+
+    // === Cálculo do impacto proporcional à velocidade ===
+    const vx = (x - oldX) * 0.6; // força (ajuste: 0.6–1.0)
+    const vy = (y - oldY) * 0.6;
+    ballVelocity.x = vx;
+    ballVelocity.y = vy;
+    ballMoving = true;
   }
 }
+
+// === Loop de física (inércia e atrito) ===
+function updateBallPhysics() {
+  if (!ballMoving) return;
+
+  const ball = document.getElementById("circle24");
+  if (!ball) return;
+
+  let bx = parseFloat(ball.style.left || 0);
+  let by = parseFloat(ball.style.top || 0);
+
+  // aplica velocidade
+  bx += ballVelocity.x;
+  by += ballVelocity.y;
+
+  // atrito (reduz a velocidade gradualmente)
+  ballVelocity.x *= 0.94;
+  ballVelocity.y *= 0.94;
+
+  // se a velocidade for muito baixa, para a bola
+  if (Math.abs(ballVelocity.x) < 0.05 && Math.abs(ballVelocity.y) < 0.05) {
+    ballMoving = false;
+  }
+
+  // mantém dentro do campo (limites de tela)
+  const field = document.getElementById("field") || document.body;
+  const maxX = (field.clientWidth || window.innerWidth) - 40;
+  const maxY = (field.clientHeight || window.innerHeight) - 40;
+  bx = Math.max(0, Math.min(bx, maxX));
+  by = Math.max(0, Math.min(by, maxY));
+
+  // aplica posição
+  ball.style.left = bx + "px";
+  ball.style.top = by + "px";
+
+  // envia posição ao servidor
+  emitBallMove("circle24", bx, by);
+}
+
+// === Atualiza a física a cada frame ===
+setInterval(updateBallPhysics, 30);
+
+// === Movimento dos jogadores (desktop + touch) ===
+const emitPlayerMove = throttle((id, left, top) => {
+  socket.emit("player-move", { id, left, top });
+}, 50);
 
 document.addEventListener("mousemove", (e) => {
   if (!activeId) return;
@@ -150,26 +269,17 @@ document.addEventListener("mousemove", (e) => {
   const x = e.clientX - dragState[i].offsetX;
   const y = e.clientY - dragState[i].offsetY;
   moveElement(i, x, y);
-  // throttle para limitar envios a cada 50 ms
-const emitPlayerMove = throttle((id, left, top) => {
-  socket.emit("player-move", { id, left, top });
-}, 50);
-
-// dentro do mousemove
-emitPlayerMove("circle" + i, x, y);
-
-
+  emitPlayerMove("circle" + i, x, y);
 });
 
 document.addEventListener("touchmove", (e) => {
   if (!activeId) return;
   const i = activeId;
   const touch = e.touches[0];
-  const rect = circles[i].getBoundingClientRect();
   const x = touch.clientX - dragState[i].offsetX;
   const y = touch.clientY - dragState[i].offsetY;
   moveElement(i, x, y);
-  socket.emit("player-move", { id: "circle" + i, left: x, top: y });
+  emitPlayerMove("circle" + i, x, y);
   e.preventDefault();
 }, { passive: false });
 
@@ -182,357 +292,16 @@ function endDrag() {
 document.addEventListener("mouseup", endDrag);
 document.addEventListener("touchend", endDrag);
 
+// === Recebe posições dos jogadores de outros clientes ===
 socket.on("update_circle", (data) => {
-  // data has {id, left, top}
-  const el = document.getElementById('circle' + data.id);
+  const el = document.getElementById("circle" + data.id);
   if (el) {
-    el.style.left = (data.left) + 'px';
-    el.style.top = (data.top) + 'px';
+    el.style.left = data.left + "px";
+    el.style.top = data.top + "px";
   }
 });
-
-// E o mesmo para a bola:
-const ball = document.getElementById('circle24');
-ball.addEventListener('mouseup', () => {
-  const left = parseInt(ball.style.left);
-  const top = parseInt(ball.style.top);
-  const emitBallMove = throttle((id, left, top) => {
-  socket.emit("ball-move", { id, left, top });
-}, 50);
-
-// dentro do mousemove da bola
-emitBallMove("circle24", x, y);
-
-});
-
-
-/* ===== AI Análise: envia posições reais do adversário ===== */
-function collectGreenPositions() {
-  // prefer IDs 13..22 (your green team). fallback to 2..11
-  const idsPrimary = Array.from({length:10}, (_,i)=>2+i); // 2..11
-  const idsFallback = Array.from({length:10}, (_,i)=>2+i); // 2..11
-  let arr = [];
-  for (const id of idsPrimary) {
-    const el = document.getElementById('circle' + id);
-    if (!el) { arr = []; break; }
-    arr.push({ id, left: parseInt(el.style.left || el.offsetLeft), top: parseInt(el.style.top || el.offsetTop) });
-  }
-  if (arr.length === 0) {
-    for (const id of idsFallback) {
-      const el = document.getElementById('circle' + id);
-      if (!el) continue;
-      arr.push({ id, left: parseInt(el.style.left || el.offsetLeft), top: parseInt(el.style.top || el.offsetTop) });
-    }
-  }
-  return arr;
-}
-
-function getBall() {
-  const el = document.getElementById('circle24');
-  return { left: parseInt(el.style.left || el.offsetLeft), top: parseInt(el.style.top || el.offsetTop) };
-}
-
-function setPositions(red) {
-  const canvas = document.getElementById("trace-canvas");
-  const ctx = canvas.getContext("2d");
-
-  for (const p of red) {
-    const el = document.getElementById('circle' + p.id);
-    if (!el) continue;
-
-    // Posição inicial
-    const startX = parseInt(el.style.left || el.offsetLeft);
-    const startY = parseInt(el.style.top || el.offsetTop);
-
-    const endX = p.left;
-    const endY = p.top;
-
-    // === Desenha linha de deslocamento (trail tático) ===
-    ctx.beginPath();
-    ctx.moveTo(startX + 20, startY + 20); // leve offset central do círculo
-    ctx.lineTo(endX + 20, endY + 20);
-    ctx.strokeStyle = "rgba(255, 51, 51, 0.6)";
-    ctx.lineWidth = 2;
-    ctx.shadowColor = "rgba(255, 51, 51, 0.4)";
-    ctx.shadowBlur = 4;
-    ctx.stroke();
-    ctx.closePath();
-
-    // Limpa o rastro após 1 segundo (efeito transitório)
-    setTimeout(() => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }, 1000);
-
-    // === Anima movimento do jogador ===
-    el.style.transition = "all 1s cubic-bezier(0.25, 0.8, 0.25, 1)";
-    el.style.opacity = "0.7";
-
-    requestAnimationFrame(() => {
-      el.style.left = endX + "px";
-      el.style.top = endY + "px";
-    });
-
-    setTimeout(() => {
-      el.style.opacity = "1";
-    }, 1000);
-  }
-}
-
-
-function updateTacticalStatus(info) {
-  const panel = document.getElementById('tactical-status');
-  if (!panel) return;
-
-  // Limpa painel se não houver info
-  if (!info) {
-    panel.style.display = 'none';
-    return;
-  }
-
-  const { detectedFormation, phase, red } = info;
-
-  // === Conteúdo do painel com botão de fechar ===
-  panel.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <strong>📊 Situação Tática</strong>
-      <button id="close-tactical-panel"
-        style="
-          background:transparent;
-          border:none;
-          color:#fff;
-          font-size:16px;
-          font-weight:bold;
-          cursor:pointer;
-          margin-left:8px;
-        "
-        title="Fechar painel">×</button>
-    </div>
-    <hr style="border:0;border-top:1px solid rgba(255,255,255,0.2);margin:6px 0;">
-    <b>📋 Tática:</b> ${detectedFormation || '---'}<br>
-    <b>🧭 Fase:</b> ${phase || '---'}<br>
-    <b>⚫ Jogadores:</b> ${(red && red.length) || 0}
-  `;
-
-  panel.style.display = 'block';
-
-  // === Evento do botão de fechar ===
-  const closeBtn = document.getElementById('close-tactical-panel');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      panel.style.opacity = '0';
-      setTimeout(() => {
-        panel.style.display = 'none';
-        panel.style.opacity = '1';
-      }, 300);
-    });
-  }
-}
-
-
-function showNotification(msg, bg = "#33aaff") {
-  const n = document.getElementById('ai-notification');
-  if (!n) return;
-
-  // cria o conteúdo com botão de fechar
-  n.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-      <span style="flex:1;font-size:0.8em;line-height:1.4;">${msg}</span>
-      <button id="close-notif-btn"
-        style="
-          background:transparent;
-          border:none;
-          color:#fff;
-          font-size:1.1em;
-          font-weight:bold;
-          cursor:pointer;
-          line-height:1;
-        "
-        title="Fechar">×</button>
-    </div>
-  `;
-
-  n.style.background = bg;
-  n.style.display = 'block';
-  n.style.opacity = '1';
-  n.style.fontSize = '0.8em';  // fonte menor
-  n.style.padding = '12px 20px';  // mais compacto
-
-  // botão de fechar
-  const closeBtn = document.getElementById('close-notif-btn');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      n.style.opacity = '0';
-      setTimeout(() => (n.style.display = 'none'), 500);
-    });
-  }
-
-  // duração aumentada (40 s)
-  clearTimeout(n.timerFade);
-  clearTimeout(n.timerHide);
-  n.timerFade = setTimeout(() => { n.style.opacity = '0'; }, 79000);
-  n.timerHide = setTimeout(() => { n.style.display = 'none'; }, 80000);
-}
-
-
-document.getElementById('ai-analise-btn').addEventListener('click', async function(){
-  const btn = this;
-  btn.disabled = true;
-  btn.textContent = 'Analisando... ⚙️';
-
-  try {
-    const green = collectGreenPositions();
-    const ball = getBall();
-
-    const res = await fetch(`https://sepalmeiras.onrender.com/ai/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ green, ball })
-    });
-
-    if (!res.ok) throw new Error(`Server returned ${res.status}`);
-
-    const data = await res.json();
-
-    // ✅ Atualiza painel tático
-    updateTacticalStatus(data);
-
-    // 🟢 Mostra tática detectada
-    if (data.detectedFormation) {
-      showNotification('📋 Tática detectada: ' + data.detectedFormation, "#1E90FF");
-      // Aguarda um pouco antes de mover
-      await new Promise(r => setTimeout(r, 900));
-    }
-
-    // 🔴 Move o time
-    if (data.red) setPositions(data.red);
-
-    // 💬 Comentário do Abel
-    if (data.coachComment)
-      showNotification('🧠 ' + data.coachComment, "#0066cc");
-
-  } catch (err) {
-    console.error('AI analyze error', err);
-    updateTacticalStatus(null);
-    showNotification('❌ Erro na análise tática', "#cc0000");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'AI Análise';
-  }
-});
-
-
-
-/* ===== Desenho tático (canvas) ===== */
-(function(){
-  const canvas = document.getElementById("trace-canvas");
-  const penBtn = document.getElementById("pen-path-btn");
-  const socketLocal = window.socket || null;
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-
-  function resizeCanvasForDisplay() {
-    const ratio = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.style.width = rect.width + "px";
-    canvas.style.height = rect.height + "px";
-    canvas.width = Math.round(rect.width * ratio);
-    canvas.height = Math.round(rect.height * ratio);
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-  }
-
-  resizeCanvasForDisplay();
-  window.addEventListener('resize', resizeCanvasForDisplay);
-  window.addEventListener('scroll', () => { resizeCanvasForDisplay(); }, { passive: true });
-
-  let penMode = false, drawing = false, currentPath = [], pointerId = null;
-
-  if (penBtn) {
-    penBtn.addEventListener('click', () => {
-      penMode = !penMode;
-      penBtn.style.background = penMode ? "#33aaff" : "#222";
-      canvas.style.pointerEvents = penMode ? "auto" : "none";
-      penBtn.textContent = penMode ? "✎ Desenhando..." : "✎ Desenho Tático";
-      canvas.style.zIndex = penMode ? "1000" : "1";
-    });
-  }
-
-  canvas.style.touchAction = "none";
-
-  function getCoordFromEvent(evt) {
-    const rect = canvas.getBoundingClientRect();
-    if (evt.clientX !== undefined && evt.clientY !== undefined) return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-    if (evt.touches && evt.touches[0]) return { x: evt.touches[0].clientX - rect.left, y: evt.touches[0].clientY - rect.top };
-    return { x: 0, y: 0 };
-  }
-
-  canvas.addEventListener('pointerdown', (e) => {
-    drawing = true; pointerId = e.pointerId;
-    try { canvas.setPointerCapture(pointerId); } catch (er){}
-    const { x,y } = getCoordFromEvent(e);
-    currentPath = [[x,y]];
-    ctx.beginPath(); ctx.moveTo(x,y);
-  });
-
-  canvas.addEventListener('pointermove', (e) => {
-    if (!penMode || !drawing || e.pointerId !== pointerId) return;
-    const { x,y } = getCoordFromEvent(e);
-    ctx.lineTo(x,y);
-    ctx.strokeStyle = "#ff3333"; ctx.lineWidth = 4; ctx.stroke();
-    currentPath.push([x,y]);
-  });
-
-  function finishDrawing(e) {
-    if (!drawing) return;
-    drawing = false;
-    try { canvas.releasePointerCapture(pointerId); } catch (er){}
-    ctx.closePath();
-    if (socketLocal && currentPath.length > 1) socketLocal.emit('path_draw', { path: currentPath });
-    currentPath = []; pointerId = null;
-  }
-
-  canvas.addEventListener('pointerup', finishDrawing);
-  canvas.addEventListener('pointercancel', finishDrawing);
-  canvas.addEventListener('pointerout', (e) => { if (drawing && e.pointerId === pointerId) finishDrawing(e); });
-
-  // touch fallback
-  canvas.addEventListener('touchstart', (e) => {
-    if (!penMode) return;
-    e.preventDefault();
-    const c = getCoordFromEvent(e);
-    drawing = true; currentPath = [[c.x,c.y]];
-    ctx.beginPath(); ctx.moveTo(c.x,c.y);
-  }, { passive: false });
-
-  canvas.addEventListener('touchmove', (e) => {
-    if (!penMode || !drawing) return;
-    e.preventDefault();
-    const c = getCoordFromEvent(e);
-    ctx.lineTo(c.x,c.y); ctx.strokeStyle = "#ff3333"; ctx.lineWidth = 4; ctx.stroke();
-    currentPath.push([c.x,c.y]);
-  }, { passive: false });
-
-  canvas.addEventListener('touchend', (e) => {
-    if (!penMode || !drawing) return;
-    e.preventDefault(); drawing = false; ctx.closePath();
-    if (socketLocal && currentPath.length > 1) socketLocal.emit('path_draw', { path: currentPath });
-    currentPath = [];
-  }, { passive: false });
-
-  if (socketLocal) {
-    socketLocal.on('path_draw', (data) => {
-      if (!data || !Array.isArray(data.path) || data.path.length === 0) return;
-      ctx.beginPath();
-      for (let i=0;i<data.path.length;i++){
-        const [x,y] = data.path[i];
-        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-      }
-      ctx.strokeStyle = "#ff3333"; ctx.lineWidth = 4; ctx.stroke(); ctx.closePath();
-    });
-  }
-})();
 </script>
+
 <script>
   // === Funções auxiliares ===
   function getPositions(prefix) {
@@ -786,6 +555,7 @@ chatInput.addEventListener("keydown", (e)=>{
         }
       }
     }
+  });
 
 // === Sincroniza jogadores em tempo real ===
 socket.on("player-move", (data) => {
@@ -823,6 +593,5 @@ socket.on("ball-move", (data) => {
   display:none;
   transition:opacity 0.3s ease;
 "></div>
-
 </body>
 </html>
