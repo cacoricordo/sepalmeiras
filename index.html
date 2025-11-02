@@ -41,7 +41,7 @@
     <div id="background-line15"></div>
     <div id="background-line16"></div>
     <div id="background-line17"></div>
-  <div id="circle12" class="circlecentral" style="background:transparent;left:237px;top:100px;border:2px solid #fff;"></div>
+  <div id="circulocentrar" class="circlecentral" style="background:transparent;left:237px;top:100px;border:2px solid #fff;"></div>
   <div id="gol-square" class="gol-square"></div>
   <div id="gol2-square" class="gol2-square"></div>
 
@@ -57,7 +57,7 @@
   <div id="circle9" class="circle">9</div>
   <div id="circle10" class="circle">10</div>
   <div id="circle11" class="circle">11</div>
-
+  <div id="circle12" class="circle" style="background:#FF0000;">A</div>
   <div id="circle13" class="circle" style="background:#33FFCC;">2</div>
   <div id="circle14" class="circle" style="background:#33FFCC;">6</div>
   <div id="circle15" class="circle" style="background:#33FFCC;">3</div>
@@ -135,9 +135,6 @@ for (let i = 1; i <= 24; i++) {
   }, { passive: false });
 }
 
-// === Controle de fala global ===
-let lastSpoken = {};
-
 // === Física da bola ===
 const emitBallMove = throttle((id, left, top) => {
   socket.emit("ball-move", { id, left, top });
@@ -189,14 +186,21 @@ function moveElement(id, x, y) {
   const el = circles[id];
   if (!el) return;
 
+  // 🟥 impede o juiz (circle12) de movimentar a bola ou ter impacto
+  if (id === 12) return;
+
+  // 🟢 permite o movimento da bola localmente
   const oldX = parseFloat(el.style.left || 0);
   const oldY = parseFloat(el.style.top || 0);
 
   el.style.left = x + "px";
   el.style.top = y + "px";
 
-  const ball = document.getElementById("circle24");
-  if (!ball) return;
+  // Se for a bola, apenas emite o movimento e sai (sem colisão)
+  if (id === 24) {
+    emitBallMove("circle24", x, y);
+    return;
+  }
 
   // detecta colisão jogador-bola
   if (checkCollision(el, ball)) {
@@ -353,15 +357,37 @@ socket.on("update_circle", (data) => {
     aiBtn.textContent = "Analisando... ⚙️";
     notify("🤖 O Abel está avaliando o adversário...", 3000);
 
-    try {
-      const green = getPositions('circle'); // time verde (IDs 13–22)
-      const black = getPositions('black');  // time preto (IDs 2–11)
-      const ball = getBall();
+function detectBallPossession(green, ball) {
+  let minDist = Infinity;
+  let closestId = null;
 
+  for (const p of green) {
+    const dx = p.left - ball.left;
+    const dy = p.top - ball.top;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < minDist) {
+      minDist = dist;
+      closestId = p.id;
+    }
+  }
+
+  // se o jogador mais próximo está a menos de 50px, bola está em posse do Palmeiras
+  return minDist < 50 ? "verde" : "preto";
+}
+
+
+    try {
+      // coleta posições
+      const green = getPositions('circle'); // pega circle2..11 (adversário) N.B.: se sua versão usa collectGreenPositions(), ajuste
+      const black = getPositions('black');  // se sua função getPositions('black') retornar vazio, troque por collectBlackPositions()
+      const ball = getBall();
+      const possession = detectBallPossession(green, ball); // "verde" | "preto"
+
+      // envia POSSESSION também (importante)
       const res = await fetch(`https://sepalmeiras.onrender.com/ai/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ green, black, ball })
+        body: JSON.stringify({ green, black, ball, possession })
       });
 
       if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
@@ -372,9 +398,30 @@ socket.on("update_circle", (data) => {
         notify(`🧠 Esquema adversário: ${data.detectedFormation}`, 4000);
       }
 
+      // ===== AÇÃO 4: se Palmeiras em posse, avançar time verde localmente =====
+      // attackAdvance: número de pixels para avançar (ajuste conforme visual)
+      const attackAdvance = possession === "verde" ? 50 : 0;
+
       if (data.red) {
+        // data.red tem posições táticas sugeridas para os IDs do time (id = 13..22 normalmente)
+        // Primeiro animamos a formação sugerida pela IA
         animateTeam('circle', data.red);
-        notify("✅ Time verde reposicionado taticamente!", 4000);
+
+        // Em seguida, aplicamos um avanço local ao time VERDE (IDs 13..22)
+        if (attackAdvance > 0) {
+          const advanced = data.red.map(p => {
+            // se p.id é do time verde (13..22), avança no eixo X (direita)
+            let newLeft = p.left + attackAdvance;
+            // limita dentro do campo (assume FIELD_WIDTH no servidor = 600)
+            newLeft = Math.max(10, Math.min(newLeft, (window.innerWidth || 600) - 40));
+            return { id: p.id, left: newLeft, top: p.top };
+          });
+          // anima novamente para aplicar o avanço ofensivo
+          setTimeout(() => animateTeam('circle', advanced), 300);
+          notify("🟢 Palmeiras avança em ataque coordenado!", 3000);
+        } else {
+          notify("⚫ Ajuste defensivo aplicado ao adversário.", 2500);
+        }
       }
 
       if (data.coachComment) {
@@ -382,7 +429,6 @@ socket.on("update_circle", (data) => {
           notify(`🎙️ Abel: ${data.coachComment}`, 7000);
         }, 1000);
       }
-
     } catch (err) {
       console.error("AI analyze error:", err);
       notify("❌ Erro na análise da IA! Verifique conexão.", 5000);
@@ -530,7 +576,6 @@ chatInput.addEventListener("keydown", (e)=>{
 });
 </script>
 <!-- === WebSocket: sincroniza jogadores em tempo real === -->
-<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 <script>
   socket.on("connect", () => {
     console.log("📡 Conectado ao servidor WebSocket");

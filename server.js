@@ -175,36 +175,38 @@ function buildRedFromFormation(formationKey, ball) {
 // === Endpoint /ai/analyze ===
 app.post("/ai/analyze", async (req, res) => {
   try {
-    const { green = [], black = [], ball = {} } = req.body;
-    const players = black.length ? black : green;
+    // corrige spelling e pega possession
+    const { green = [], black = [], ball = {}, possession = 'preto' } = req.body;
+    const players = (black && black.length) ? black : green;
     if (!players.length) return res.status(400).json({ error: "Nenhum jogador recebido" });
 
-    // === detecção de formação ===
+    // detect formation & build red
     const detectedFormation = detectFormationAdvanced(players);
     const { red } = buildRedFromFormation(detectedFormation, ball);
 
-    // === prepara análise tática ===
+    // spread / bloco / compactacao
     const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));
     const spreadY = Math.max(...players.map(p => p.top)) - Math.min(...players.map(p => p.top));
     const bloco = spreadX < 250 ? "baixo" : spreadX < 350 ? "médio" : "alto";
     const compactacao = spreadY < 160 ? "curta" : spreadY < 250 ? "média" : "larga";
 
-    const apiKey = process.env.OPENROUTER_KEY;
     let coachComment = `O adversário joga num ${detectedFormation}, bloco ${bloco}, compactação ${compactacao}.`;
 
-    if (apiKey) {
+    if (process.env.OPENROUTER_KEY) {
       try {
         const prompt = `
-        O adversário está disposto num ${detectedFormation}, com bloco ${bloco} e compactação ${compactacao}.
-        Analisa taticamente como Abel Ferreira, treinador do Palmeiras.
-        Fala em português de Portugal, com intensidade e clareza.
-        Observa as linhas, a mentalidade e possíveis ajustes de pressão e amplitude.
+O adversário está em bloco ${bloco} com compactação ${compactacao}.
+A bola está em posse do time ${possession === 'verde' ? 'verdes (Palmeiras)' : 'preto (adversário)'}.
+Se o Palmeiras tem a posse, descreve como o Abel faria o time adversário (time preto) reagir defensivamente.
+Se o Palmeiras não tem a posse, descreve ajustes ofensivos para aproveitar espaço.
+Devolve um comentário tático curto.
         `;
 
+        // chama OpenRouter (mantém sua implementação)
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${apiKey}`,
+            "Authorization": `Bearer ${process.env.OPENROUTER_KEY}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
@@ -212,11 +214,7 @@ app.post("/ai/analyze", async (req, res) => {
             messages: [
               {
                 role: "system",
-                content: `
-                Tu és Abel Ferreira, treinador da Sociedade Esportiva Palmeiras.
-                Fala com mentalidade vencedora, intensidade e raciocínio tático.
-                Analisa as formações, a pressão, e o equilíbrio entre blocos.
-                `
+                content: `Tu és Abel Ferreira, treinador do Palmeiras. Analisa formações e faz recomendações táticas.`
               },
               { role: "user", content: prompt }
             ],
@@ -238,7 +236,6 @@ app.post("/ai/analyze", async (req, res) => {
     res.status(500).json({ error: "Erro interno na análise" });
   }
 });
-
 
 // === Chat do Abel Ferreira ===
 app.post("/api/chat", async (req, res) => {
