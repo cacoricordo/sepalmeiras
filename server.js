@@ -93,9 +93,12 @@ function detectFormationAdvanced(players) {
   const counts = clusters.map(c => c.players.length);
   const signature = counts.join("-");
 
+if (signature.includes("1-1-8")) return "1-1-8";
+if (signature.includes("W.M")) return "W.M";
+if (signature.includes("4-2-4")) return "4-2-4";
+if (signature.includes("4-2-3-1")) return "4-2-3-1";
 if (signature.includes("4-4-2")) return "4-4-2";
 if (signature.includes("3-5-2")) return "3-5-2";
-if (signature.includes("4-2-3-1")) return "4-2-3-1";
 if (signature.includes("3-4-3")) return "3-4-3";
 if (signature.includes("4-3-3")) return "4-3-3";
 
@@ -115,11 +118,65 @@ const FORMATIONS = {
     { id:19, zone:[200, 170] }, { id:20, zone:[200, 220] },
     { id:21, zone:[320, 120] }, { id:22, zone:[320, 180] }
   ],
+
   "4-3-3": [
     { id:13, zone:[80,80] }, { id:14, zone:[80,220] },
     { id:15, zone:[100,130] }, { id:16, zone:[100,170] },
     { id:17, zone:[210,100] }, { id:18, zone:[210,150] }, { id:19, zone:[210,200] },
     { id:20, zone:[320,80] }, { id:21, zone:[330,150] }, { id:22, zone:[320,220] }
+  ],
+
+  "4-2-3-1": [
+    // linha defensiva (4)
+    { id:13, zone:[70,80] }, { id:14, zone:[70,220] },
+    { id:15, zone:[100,130] }, { id:16, zone:[100,170] },
+    // dupla de volantes (2)
+    { id:17, zone:[170,110] }, { id:18, zone:[170,190] },
+    // linha de 3 meias ofensivos
+    { id:19, zone:[230,80] }, { id:20, zone:[230,150] }, { id:21, zone:[230,220] },
+    // centroavante isolado (1)
+    { id:22, zone:[320,150] }
+  ],
+
+  "1-1-8": [
+    // goleiro e líbero
+    { id:13, zone:[40,150] }, { id:14, zone:[90,150] },
+    // 8 atacantes em linha ofensiva
+    { id:15, zone:[160,40] }, { id:16, zone:[160,90] }, { id:17, zone:[160,140] }, { id:18, zone:[160,190] },
+    { id:19, zone:[220,60] }, { id:20, zone:[220,120] }, { id:21, zone:[220,180] }, { id:22, zone:[220,240] }
+  ],
+
+  "W.M": [
+    // sistema clássico 3-2-2-3 (anos 1930–50)
+    // 3 zagueiros
+    { id:13, zone:[70,80] }, { id:14, zone:[70,150] }, { id:15, zone:[70,220] },
+    // 2 volantes
+    { id:16, zone:[130,100] }, { id:17, zone:[130,200] },
+    // 2 meias ofensivos
+    { id:18, zone:[200,120] }, { id:19, zone:[200,180] },
+    // 3 atacantes
+    { id:20, zone:[300,80] }, { id:21, zone:[310,150] }, { id:22, zone:[300,220] }
+  ],
+
+  "4-2-4": [
+    // 4 defensores
+    { id:13, zone:[70,80] }, { id:14, zone:[70,220] },
+    { id:15, zone:[100,130] }, { id:16, zone:[100,170] },
+    // 2 volantes
+    { id:17, zone:[180,120] }, { id:18, zone:[180,180] },
+    // 4 atacantes em bloco alto
+    { id:19, zone:[280,60] }, { id:20, zone:[280,120] }, { id:21, zone:[280,180] }, { id:22, zone:[280,240] }
+  ],
+
+  "3-5-2": [
+    // 3 zagueiros
+    { id:13, zone:[70, 100] }, { id:14, zone:[70, 150] }, { id:15, zone:[70, 200] },
+    // 2 alas
+    { id:16, zone:[130, 60] }, { id:17, zone:[130, 240] },
+    // 3 meio-campistas centrais
+    { id:18, zone:[180, 100] }, { id:19, zone:[180, 150] }, { id:20, zone:[180, 200] },
+    // 2 atacantes
+    { id:21, zone:[320, 120] }, { id:22, zone:[320, 180] }
   ]
 };
 
