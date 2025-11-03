@@ -96,52 +96,55 @@ const FORMATIONS = {
   ]
 };
 
-// === Detector geométrico do adversário (robusto) ===
-function detectOpponentFormationAdvanced(black) {
-  if (!black || black.length < 8) return "4-4-2";
+// === Detector geométrico FIFA real ===
+function detectOpponentFormationAdvanced(players) {
+  if (!players || players.length < 8) return "4-4-2";
 
-  const sorted = [...black].sort((a, b) => a.left - b.left);
-  const FIELD_THIRD = FIELD_WIDTH / 3;
+  // 1️⃣ Ordena por posição vertical (Y)
+  const sorted = [...players].sort((a, b) => a.top - b.top);
 
-  const defense = sorted.filter(p => p.left < FIELD_THIRD);
-  const midfield = sorted.filter(p => p.left >= FIELD_THIRD && p.left < FIELD_THIRD * 2);
-  const attack = sorted.filter(p => p.left >= FIELD_THIRD * 2);
-
-  const avgGap = (arr) => {
-    if (!arr || arr.length < 2) return 999;
-    const gaps = [];
-    for (let i = 1; i < arr.length; i++) gaps.push(Math.abs(arr[i].top - arr[i - 1].top));
-    return gaps.reduce((a, b) => a + b, 0) / gaps.length;
-  };
-
-  const defGap = avgGap(defense);
-  const midGap = avgGap(midfield);
-  const attGap = avgGap(attack);
-
-  const defenders = defense.length;
-  const mids = midfield.length;
-  const forwards = attack.length;
-
-  // profundidade média segura
-  const midAvg = safeAvgX(midfield);
-
-  // Se os meias estão recuados e compõem linha defensiva
-  if (midAvg !== Infinity && midAvg < 200 && defenders >= 3 && mids >= 3) {
-    return (defenders + mids) >= 5 ? "5-4-1" : "4-5-1";
+  // 2️⃣ Agrupa por linhas (diferença de Y <= 60px)
+  const lines = [];
+  for (const p of sorted) {
+    let line = lines.find(l => Math.abs(l.centerY - p.top) <= 60);
+    if (line) {
+      line.players.push(p);
+      line.centerY = (line.centerY * (line.players.length - 1) + p.top) / line.players.length;
+    } else {
+      lines.push({ players: [p], centerY: p.top });
+    }
   }
 
-  // reconhecimento por gaps e contagens
-  if (defGap <= 70 && mids === 3 && attGap <= 70 && forwards === 3) return "4-3-3";
-  if (defGap <= 70 && mids === 4 && forwards === 2) return "4-4-2";
-  if (defGap <= 70 && mids === 5 && forwards === 1) return "4-5-1";
-  if (defenders === 5 && mids === 4 && forwards === 1) return "5-4-1";
-  if (defenders === 5 && mids === 3 && forwards === 2) return "5-3-2";
-  if (defenders === 3 && mids >= 5 && forwards === 2) return "3-5-2";
-  if (defenders === 4 && mids === 2 && forwards === 4) return "4-2-4";
-  if (defenders === 4 && mids === 2 && forwards === 3) return "4-2-3-1";
-  if (defenders === 3 && mids === 4 && forwards === 3) return "3-4-3";
+  // 3️⃣ Ordena linhas de trás pra frente (defesa→ataque)
+  lines.sort((a, b) => a.centerY - b.centerY);
 
-  return "4-4-2";
+  // 4️⃣ Conta quantos jogadores por linha
+  const counts = lines.map(l => l.players.length);
+
+  // 5️⃣ Traduz para assinatura (ex: [4,3,3])
+  const signature = counts.join("-");
+
+  // 6️⃣ Mapeia para formação FIFA
+  if (signature.match(/^4-3-3/)) return "4-3-3";
+  if (signature.match(/^4-4-2/)) return "4-4-2";
+  if (signature.match(/^3-5-2/)) return "3-5-2";
+  if (signature.match(/^5-4-1/)) return "5-4-1";
+  if (signature.match(/^4-2-3-1/)) return "4-2-3-1";
+  if (signature.match(/^5-3-2/)) return "5-3-2";
+  if (signature.match(/^4-5-1/)) return "4-5-1";
+  if (signature.match(/^3-4-3/)) return "3-4-3";
+
+  // 7️⃣ fallback: calcula “linha defensiva + meio + ataque” pelo X médio
+  const avgX = (arr) => arr.reduce((a, p) => a + p.left, 0) / arr.length;
+  const FIELD_THIRD = FIELD_WIDTH / 3;
+  const def = players.filter(p => p.left < FIELD_THIRD);
+  const mid = players.filter(p => p.left >= FIELD_THIRD && p.left < FIELD_THIRD * 2);
+  const att = players.filter(p => p.left >= FIELD_THIRD * 2);
+  const shape = `${def.length}-${mid.length}-${att.length}`;
+  if (shape === "4-3-3") return "4-3-3";
+  if (shape === "4-4-2") return "4-4-2";
+  if (shape === "5-4-1") return "5-4-1";
+  return shape;
 }
 
 // === Counter formation choice ===
