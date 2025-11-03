@@ -112,6 +112,27 @@ function detectFormationAdvanced(players) {
   return "4-4-2";
 }
 
+// === Reconhece o estado tático do adversário ===
+function detectTacticalPhase(players, ball, possession) {
+  if (!players?.length || !ball) return "meio-campo";
+
+  const avgX = players.reduce((a, p) => a + p.left, 0) / players.length;
+  const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));
+
+  // Posição média dos jogadores e posição da bola determinam intenção tática
+  if (possession === "verde") {
+    // Palmeiras tem a bola — adversário deve recuar
+    if (avgX > 400 && spreadX < 220) return "retranca";         // todos recuados
+    if (avgX > 320 && spreadX < 300) return "bloco-baixo";      // defesa compacta
+    return "reação-defensiva";                                  // pressão média
+  } else {
+    // Adversário tem a bola — pode atacar
+    if (avgX < 220 && spreadX > 300) return "pressão-alta";     // todos avançando
+    if (avgX < 280) return "bloco-médio";                       // construção
+    return "toque-de-bola";                                     // cadenciado
+  }
+}
+
 // === Formações base ===
 const FORMATIONS = {
   "4-4-2": [
@@ -161,6 +182,21 @@ const FORMATIONS = {
   ]
 };
 
+//Padrão de escolha FIFA
+
+function pickFormationByPhase(tacticalPhase) {
+  switch (tacticalPhase) {
+    case "retranca": return "5-4-1";
+    case "bloco-baixo": return "4-5-1";
+    case "reação-defensiva": return "4-4-2";
+    case "pressão-alta": return "4-3-3";
+    case "bloco-médio": return "3-5-2";
+    case "toque-de-bola": return "4-2-3-1";
+    default: return "4-3-3";
+  }
+}
+
+
 // === Gera time vermelho com offset tático ===
 function buildRedFromFormation(formationKey, ball, phase = 'defesa') {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
@@ -209,13 +245,12 @@ app.post("/ai/analyze", async (req, res) => {
     if (!players.length) return res.status(400).json({ error: "Nenhum jogador recebido" });
 
 // === Determine fase tática ===
-// Palmeiras joga com defesa à direita, ataque à esquerda
-// Se Palmeiras (verde) tem a posse → ataque
-// Caso contrário → defesa
-const phase = possession === 'verde' ? 'ataque' : 'defesa';
-const detectedFormation = detectFormationAdvanced(players);
-const { red } = buildRedFromFormation(detectedFormation, ball, phase);
 
+const phase = possession === 'verde' ? 'ataque' : 'defesa';
+const tacticalPhase = detectTacticalPhase(players, ball, possession);
+const detectedFormation = pickFormationByPhase(tacticalPhase);
+
+const { red } = buildRedFromFormation(detectedFormation, ball, phase);
 
     // spread / bloco / compactacao
     const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));
@@ -223,17 +258,17 @@ const { red } = buildRedFromFormation(detectedFormation, ball, phase);
     const bloco = spreadX < 250 ? "baixo" : spreadX < 350 ? "médio" : "alto";
     const compactacao = spreadY < 160 ? "curta" : spreadY < 250 ? "média" : "larga";
 
-    let coachComment = `O adversário joga num ${detectedFormation}, bloco ${bloco}, compactação ${compactacao}.`;
+    let coachComment = `O adversário está num ${detectedFormation}, fase ${tacticalPhase}.`;
+
 
     if (process.env.OPENROUTER_KEY) {
       try {
-        const prompt = `
-O adversário está em bloco ${bloco} com compactação ${compactacao}.
-A bola está em posse do time ${possession === 'verde' ? 'verdes (Palmeiras)' : 'preto (adversário)'}.
-Se o Palmeiras tem a posse, descreve como o Abel faria o time adversário (time preto) reagir defensivamente.
-Se o Palmeiras não tem a posse, descreve ajustes ofensivos para aproveitar espaço.
-Devolve um comentário tático curto.
-        `;
+     const prompt = `
+O adversário está na fase ${tacticalPhase}, com ${detectedFormation}.
+Bloco ${bloco}, compactação ${compactacao}.
+A bola está com o time ${possession === 'verde' ? 'verdes (Palmeiras)' : 'pretos (adversário)'}.
+Analisa como Abel Ferreira, descrevendo como reagir taticamente em 3 linhas curtas.
+`;
 
         // chama OpenRouter (mantém sua implementação)
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
