@@ -197,7 +197,7 @@ function pickFormationByPhase(tacticalPhase) {
 }
 
 
-// === Gera time vermelho com offset tático ===
+// === Gera time preto (adversário) posicionado corretamente (esquerda→direita) ===
 function buildRedFromFormation(formationKey, ball, phase = 'defesa') {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
   const red = [];
@@ -215,23 +215,23 @@ function buildRedFromFormation(formationKey, ball, phase = 'defesa') {
     let baseX;
 
     if (phase === "ataque") {
-      // Palmeiras em posse → adversário recua (defende à direita)
-      baseX = FIELD_WIDTH - pos.zone[0] - offsetX;
-    } else {
-      // Palmeiras sem posse → adversário avança (ataca da esquerda)
+      // Adversário em posse → avança (da esquerda para a direita)
       baseX = pos.zone[0] + offsetX;
+    } else {
+      // Adversário sem posse → recua (mantém-se no lado esquerdo)
+      baseX = pos.zone[0] - offsetX * 0.3;
     }
 
     baseX = Math.max(20, Math.min(FIELD_WIDTH - 20, baseX));
     red.push({ id: pos.id, left: baseX, top: pos.zone[1] + jitter });
   }
 
+  // Goleiro adversário fixo no gol da ESQUERDA
   const gkTop = ball && typeof ball.top === "number"
     ? FIELD_HEIGHT / 2 + (ball.top - FIELD_HEIGHT / 2) * 0.3
     : FIELD_HEIGHT / 2;
 
-  // Goleiro fixo no gol da direita
-  red.unshift({ id: 23, left: FIELD_WIDTH - 10, top: gkTop });
+  red.unshift({ id: 23, left: 10, top: gkTop });
 
   return { red };
 }
