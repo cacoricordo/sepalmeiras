@@ -1,4 +1,4 @@
-// ===== ⚽ Tactical AI 11.3 - SE Palmeiras =====
+// ===== ⚽ Tactical AI v11.7 - SE Palmeiras =====
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
@@ -14,7 +14,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// === Servidor HTTP e WebSocket ===
+// === Servidor HTTP + WebSocket ===
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -27,24 +27,20 @@ const io = new Server(httpServer, {
   }
 });
 
-// === SOCKET.IO HANDLERS ===
+// === WebSocket sync ===
 io.on("connection", (socket) => {
   console.log(`🔌 Cliente conectado: ${socket.id}`);
 
-  // Movimento dos jogadores
   socket.on("player-move", (data) => {
     if (data && data.id) socket.broadcast.emit("player-move", data);
   });
 
-  // Movimento da bola
   socket.on("ball-move", (data) => {
     if (data && data.id) socket.broadcast.emit("ball-move", data);
   });
 
-  // Desenhos táticos (Pen Mode Pro Sync)
   socket.on("path_draw", (data) => {
     if (data && Array.isArray(data.path) && data.path.length > 1) {
-      console.log(`✏️  Traço recebido de ${socket.id} (${data.path.length} pontos)`);
       socket.broadcast.emit("path_draw", data);
     }
   });
@@ -64,72 +60,22 @@ app.use(bodyParser.json());
 // === Constantes ===
 const FIELD_WIDTH = 600;
 const FIELD_HEIGHT = 300;
-const CENTER_X = FIELD_WIDTH / 2;
 
-// === Detecta formação ===
-function detectFormationAdvanced(players) {
-  if (!players || players.length < 8) return "4-3-3";
-  const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));
-  const RADIUS = spreadX < 250 ? 50 : 100;
-  const clusters = [];
-
-  function findCluster(px, py) {
-    for (const c of clusters) {
-      const dx = px - c.centerX;
-      const dy = py - c.centerY;
-      if (Math.sqrt(dx * dx + dy * dy) < RADIUS) return c;
-    }
-    return null;
-  }
-
-  for (const p of players) {
-    const c = findCluster(p.left, p.top);
-    if (c) {
-      c.players.push(p);
-      c.centerX = (c.centerX * (c.players.length - 1) + p.left) / c.players.length;
-      c.centerY = (c.centerY * (c.players.length - 1) + p.top) / c.players.length;
-    } else {
-      clusters.push({ players: [p], centerX: p.left, centerY: p.top });
-    }
-  }
-
-  clusters.sort((a, b) => a.centerX - b.centerX);
-  const counts = clusters.map(c => c.players.length);
-  const signature = counts.join("-");
-
-  if (signature.includes("1-1-8")) return "1-1-8";
-  if (signature.includes("W.M")) return "W.M";
-  if (signature.includes("4-2-4")) return "4-2-4";
-  if (signature.includes("4-2-3-1")) return "4-2-3-1";
-  if (signature.includes("4-4-2")) return "4-4-2";
-  if (signature.includes("3-5-2")) return "3-5-2";
-  if (signature.includes("3-4-3")) return "3-4-3";
-  if (signature.includes("4-3-3")) return "4-3-3";
-
-  if (clusters.length <= 3) return "3-5-2";
-  if (clusters.length === 4) return "4-4-2";
-  if (clusters.length >= 5) return "4-3-3";
-  return "4-4-2";
-}
-
-// === Reconhece o estado tático do adversário ===
+// === Detecta fase tática simples ===
 function detectTacticalPhase(players, ball, possession) {
   if (!players?.length || !ball) return "meio-campo";
 
   const avgX = players.reduce((a, p) => a + p.left, 0) / players.length;
   const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));
 
-  // Posição média dos jogadores e posição da bola determinam intenção tática
   if (possession === "verde") {
-    // Palmeiras tem a bola — adversário deve recuar
-    if (avgX > 400 && spreadX < 220) return "retranca";         // todos recuados
-    if (avgX > 320 && spreadX < 300) return "bloco-baixo";      // defesa compacta
-    return "reação-defensiva";                                  // pressão média
+    if (avgX < 200 && spreadX > 300) return "ataque-intenso";
+    if (avgX < 300) return "construção";
+    return "transição";
   } else {
-    // Adversário tem a bola — pode atacar
-    if (avgX < 220 && spreadX > 300) return "pressão-alta";     // todos avançando
-    if (avgX < 280) return "bloco-médio";                       // construção
-    return "toque-de-bola";                                     // cadenciado
+    if (avgX > 400 && spreadX < 250) return "bloco-baixo";
+    if (avgX > 320) return "bloco-médio";
+    return "reação-defensiva";
   }
 }
 
@@ -148,12 +94,6 @@ const FORMATIONS = {
     { id:17, zone:[210,100] }, { id:18, zone:[210,150] }, { id:19, zone:[210,200] },
     { id:20, zone:[320,80] }, { id:21, zone:[330,150] }, { id:22, zone:[320,220] }
   ],
-  "3-5-2": [
-    { id:13, zone:[70,100] }, { id:14, zone:[70,150] }, { id:15, zone:[70,200] },
-    { id:16, zone:[130,60] }, { id:17, zone:[130,240] },
-    { id:18, zone:[180,100] }, { id:19, zone:[180,150] }, { id:20, zone:[180,200] },
-    { id:21, zone:[320,120] }, { id:22, zone:[320,180] }
-  ],
   "4-2-3-1": [
     { id:13, zone:[70,80] }, { id:14, zone:[70,220] },
     { id:15, zone:[100,130] }, { id:16, zone:[100,170] },
@@ -161,53 +101,50 @@ const FORMATIONS = {
     { id:19, zone:[230,80] }, { id:20, zone:[230,150] }, { id:21, zone:[230,220] },
     { id:22, zone:[320,150] }
   ],
-  "1-1-8": [
-    { id:13, zone:[40,150] }, { id:14, zone:[90,150] },
-    { id:15, zone:[160,40] }, { id:16, zone:[160,90] }, { id:17, zone:[160,140] },
-    { id:18, zone:[160,190] }, { id:19, zone:[220,60] }, { id:20, zone:[220,120] },
-    { id:21, zone:[220,180] }, { id:22, zone:[220,240] }
+  "3-5-2": [
+    { id:13, zone:[70,100] }, { id:14, zone:[70,150] }, { id:15, zone:[70,200] },
+    { id:16, zone:[130,60] }, { id:17, zone:[130,240] },
+    { id:18, zone:[180,100] }, { id:19, zone:[180,150] }, { id:20, zone:[180,200] },
+    { id:21, zone:[320,120] }, { id:22, zone:[320,180] }
   ],
-  "W.M": [
-    { id:13, zone:[70,80] }, { id:14, zone:[70,150] }, { id:15, zone:[70,220] },
-    { id:16, zone:[130,100] }, { id:17, zone:[130,200] },
-    { id:18, zone:[200,120] }, { id:19, zone:[200,180] },
-    { id:20, zone:[300,80] }, { id:21, zone:[310,150] }, { id:22, zone:[300,220] }
-  ],
-  "4-2-4": [
+  "4-5-1": [
     { id:13, zone:[70,80] }, { id:14, zone:[70,220] },
-    { id:15, zone:[100,130] }, { id:16, zone:[100,170] },
-    { id:17, zone:[180,120] }, { id:18, zone:[180,180] },
-    { id:19, zone:[280,60] }, { id:20, zone:[280,120] },
-    { id:21, zone:[280,180] }, { id:22, zone:[280,240] }
+    { id:15, zone:[100,110] }, { id:16, zone:[100,150] }, { id:17, zone:[100,190] },
+    { id:18, zone:[170,100] }, { id:19, zone:[170,200] },
+    { id:20, zone:[250,130] }, { id:21, zone:[320,150] }, { id:22, zone:[320,180] }
+  ],
+  "5-4-1": [
+    { id:13, zone:[60,70] }, { id:14, zone:[60,230] },
+    { id:15, zone:[80,130] }, { id:16, zone:[80,170] }, { id:17, zone:[100,150] },
+    { id:18, zone:[160,100] }, { id:19, zone:[160,200] },
+    { id:20, zone:[230,130] }, { id:21, zone:[300,120] }, { id:22, zone:[300,180] }
   ]
 };
 
-//Padrão de escolha FIFA
-
+// === Escolhe formação FIFA conforme fase ===
 function pickFormationByPhase(tacticalPhase) {
   switch (tacticalPhase) {
-    case "retranca": return "5-4-1";
-    case "bloco-baixo": return "4-5-1";
+    case "ataque-intenso": return "4-2-4";
+    case "construção": return "4-3-3";
+    case "transição": return "4-2-3-1";
+    case "bloco-baixo": return "5-4-1";
+    case "bloco-médio": return "4-5-1";
     case "reação-defensiva": return "4-4-2";
-    case "pressão-alta": return "4-3-3";
-    case "bloco-médio": return "3-5-2";
-    case "toque-de-bola": return "4-2-3-1";
     default: return "4-3-3";
   }
 }
 
-
-// === Gera time preto (adversário) posicionado corretamente (esquerda→direita) ===
-function buildRedFromFormation(formationKey, ball, phase = 'defesa') {
+// === IA controla o time verde/red (Palmeiras) ===
+function buildGreenFromFormation(formationKey, ball, phase = 'defesa') {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
-  const red = [];
+  const greenAI = [];
 
   let offsetX = 0;
   switch (formationKey) {
-    case "1-1-8": offsetX = 160; break;
+    case "5-4-1": offsetX = 40; break;
+    case "4-5-1": offsetX = 20; break;
     case "4-2-4": offsetX = 100; break;
-    case "W.M": offsetX = 60; break;
-    case "3-5-2": offsetX = 30; break;
+    case "3-5-2": offsetX = 60; break;
   }
 
   for (const pos of formation) {
@@ -215,69 +152,55 @@ function buildRedFromFormation(formationKey, ball, phase = 'defesa') {
     let baseX;
 
     if (phase === "ataque") {
-      // Adversário em posse → avança (da esquerda para a direita)
+      // Palmeiras em posse → avança para o ataque (direita → esquerda)
       baseX = pos.zone[0] + offsetX;
     } else {
-      // Adversário sem posse → recua (mantém-se no lado esquerdo)
-      baseX = pos.zone[0] - offsetX * 0.3;
+      // Palmeiras sem posse → recua (defende à direita)
+      baseX = FIELD_WIDTH - pos.zone[0] - offsetX;
     }
 
     baseX = Math.max(20, Math.min(FIELD_WIDTH - 20, baseX));
-    red.push({ id: pos.id, left: baseX, top: pos.zone[1] + jitter });
+    greenAI.push({ id: pos.id, left: baseX, top: pos.zone[1] + jitter });
   }
 
-  // Goleiro adversário fixo no gol da ESQUERDA
+  // Goleiro fixo no gol da direita
   const gkTop = ball && typeof ball.top === "number"
     ? FIELD_HEIGHT / 2 + (ball.top - FIELD_HEIGHT / 2) * 0.3
     : FIELD_HEIGHT / 2;
+  greenAI.unshift({ id: 1, left: FIELD_WIDTH - 10, top: gkTop });
 
-  red.unshift({ id: 23, left: 10, top: gkTop });
-
-  return { red };
+  return { greenAI };
 }
 
-// === Endpoint /ai/analyze ===
+// === Endpoint principal: /ai/analyze ===
 app.post("/ai/analyze", async (req, res) => {
   try {
-    const { green = [], black = [], ball = {}, possession = 'preto' } = req.body;
+    const { green = [], black = [], ball = {}, possession = "preto" } = req.body;
+    const players = green; // Palmeiras é o foco da IA
 
-    // Palmeiras é o time verde, adversário é o preto
-    const palmeiras = green;
-    const adversario = black.length ? black : buildRedFromFormation("4-3-3", ball).red;
-
-    // === Define quem será analisado ===
-    // A IA analisa SEMPRE o adversário (time preto)
-    const players = adversario;
-
-    // === Determina fase tática conforme posse ===
-    const phase = possession === 'verde' ? 'defesa' : 'ataque';
+    // Palmeiras defende à direita e ataca à esquerda
+    const phase = possession === "verde" ? "ataque" : "defesa";
     const tacticalPhase = detectTacticalPhase(players, ball, possession);
     const detectedFormation = pickFormationByPhase(tacticalPhase);
+    const { greenAI } = buildGreenFromFormation(detectedFormation, ball, phase);
 
-    // === Gera novo posicionamento do adversário ===
-    const { red } = buildRedFromFormation(detectedFormation, ball, phase);
-
-    // === Análise de bloco e compactação ===
     const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));
     const spreadY = Math.max(...players.map(p => p.top)) - Math.min(...players.map(p => p.top));
     const bloco = spreadX < 250 ? "baixo" : spreadX < 350 ? "médio" : "alto";
     const compactacao = spreadY < 160 ? "curta" : spreadY < 250 ? "média" : "larga";
 
-    let coachComment = `O adversário está num ${detectedFormation}, fase ${tacticalPhase}.`;
+    let coachComment = `O Palmeiras joga num ${detectedFormation}, fase ${tacticalPhase}.`;
 
-    // === Integração com OpenRouter (Abel Ferreira) ===
     if (process.env.OPENROUTER_KEY) {
       try {
-      const prompt = `
-O Palmeiras defende à direita e ataca para a esquerda.
-O Palmeiras (time verde) está na fase ${tacticalPhase}, jogando num ${detectedFormation}.
+        const prompt = `
+O Palmeiras defende à direita e ataca à esquerda.
+Está na fase ${tacticalPhase}, jogando num ${detectedFormation}.
 Bloco ${bloco}, compactação ${compactacao}.
-A bola está com ${possession === 'verde' ? 'o Palmeiras' : 'o adversário'}.
-Como Abel Ferreira, faz um comentário tático realista sobre o posicionamento do Palmeiras neste momento:
-- o que o Palmeiras está a tentar fazer taticamente;
-- que pontos fortes/riscos há nesse posicionamento;
-- que ajustes concretos (movimentos, linhas, trocas) sugeres para combater o time preto.
+A bola está com o time ${possession === "verde" ? "do Palmeiras" : "adversário"}.
+Fala como Abel Ferreira, descrevendo o comportamento tático do Palmeiras nesta fase em 3 linhas curtas.
 `;
+
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -289,11 +212,11 @@ Como Abel Ferreira, faz um comentário tático realista sobre o posicionamento d
             messages: [
               {
                 role: "system",
-                content: `Tu és Abel Ferreira, treinador do Palmeiras. Analisa o jogo com profundidade tática e precisão situacional.`
+                content: `Tu és Abel Ferreira, treinador do Palmeiras. Fala como treinador, com análise tática objetiva.`
               },
               { role: "user", content: prompt }
             ],
-            max_tokens: 220,
+            max_tokens: 200,
             temperature: 0.8
           })
         });
@@ -301,18 +224,16 @@ Como Abel Ferreira, faz um comentário tático realista sobre o posicionamento d
         const data = await response.json();
         coachComment = data?.choices?.[0]?.message?.content || coachComment;
       } catch (err) {
-        console.error("Erro ao chamar OpenAI:", err);
+        console.error("Erro ao chamar OpenRouter:", err);
       }
     }
 
-    // === Retorno para o front ===
-    res.json({ detectedFormation, red, coachComment });
+    res.json({ detectedFormation, green: greenAI, coachComment });
   } catch (err) {
     console.error("Erro /ai/analyze", err);
     res.status(500).json({ error: "Erro interno na análise" });
   }
 });
-
 
 // === Chat do Abel Ferreira ===
 app.post("/api/chat", async (req, res) => {
@@ -330,7 +251,7 @@ app.post("/api/chat", async (req, res) => {
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "Tu és Abel Ferreira, treinador do Palmeiras. Fala em português de Portugal com intensidade e clareza." },
+          { role: "system", content: "Tu és Abel Ferreira, treinador do Palmeiras. Fala com intensidade e clareza tática." },
           { role: "user", content: message }
         ],
         max_tokens: 180,
@@ -348,5 +269,5 @@ app.post("/api/chat", async (req, res) => {
 
 // === Inicialização ===
 const PORT = process.env.PORT || 10000;
-httpServer.listen(PORT, () => console.log(`🚀 AI TÁTICA 11.3 rodando na porta ${PORT}`));
+httpServer.listen(PORT, () => console.log(`🚀 AI TÁTICA v11.7 (Palmeiras) rodando na porta ${PORT}`));
 
