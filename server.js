@@ -268,12 +268,15 @@ app.post("/ai/analyze", async (req, res) => {
     // === Integração com OpenRouter (Abel Ferreira) ===
     if (process.env.OPENROUTER_KEY) {
       try {
-        const prompt = `
+      const prompt = `
 O Palmeiras defende à direita e ataca para a esquerda.
-O adversário (time preto) está na fase ${tacticalPhase}, jogando num ${detectedFormation}.
+O Palmeiras (time verde) está na fase ${tacticalPhase}, jogando num ${detectedFormation}.
 Bloco ${bloco}, compactação ${compactacao}.
-A bola está com o time ${possession === 'verde' ? 'verdes (Palmeiras)' : 'pretos (adversário)'}.
-Faz um comentário tático realista, como Abel Ferreira, sobre o momento atual e possíveis ajustes.
+A bola está com ${possession === 'verde' ? 'o Palmeiras' : 'o adversário'}.
+Como Abel Ferreira, faz um comentário tático realista sobre o posicionamento do Palmeiras neste momento:
+- o que o Palmeiras está a tentar fazer taticamente;
+- que pontos fortes/riscos há nesse posicionamento;
+- que ajustes concretos (movimentos, linhas, trocas) sugeres para combater o time preto.
 `;
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
