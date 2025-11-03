@@ -48,27 +48,29 @@ app.use(bodyParser.json());
 const FIELD_WIDTH = 600;
 const FIELD_HEIGHT = 300;
 
-// === Detecta formação do adversário pelo cluster horizontal ===
 function detectOpponentFormation(black) {
   if (!black?.length) return "4-4-2";
 
+  // Adversário defende à esquerda → ataca para a direita
   const sorted = [...black].sort((a, b) => a.left - b.left);
-  const third = FIELD_WIDTH / 3;
 
+  // Divide o campo em 3 zonas: defesa, meio, ataque (em relação à esquerda)
+  const third = FIELD_WIDTH / 3;
   const defenders = sorted.filter(p => p.left < third).length;
   const mids = sorted.filter(p => p.left >= third && p.left < 2 * third).length;
   const forwards = sorted.filter(p => p.left >= 2 * third).length;
 
   const signature = `${defenders}-${mids}-${forwards}`;
 
-  if (signature === "3-4-3" || (defenders === 3 && forwards === 3)) return "3-4-3";
-  if (signature === "4-3-3" || (defenders === 4 && forwards === 3)) return "4-3-3";
-  if (signature === "4-4-2" || (defenders === 4 && forwards === 2)) return "4-4-2";
-  if (signature === "5-3-2" || defenders >= 5) return "5-3-2";
-  if (signature === "3-5-2") return "3-5-2";
-  if (signature === "4-2-3-1") return "4-2-3-1";
+  if (defenders === 3 && forwards === 3) return "3-4-3";
+  if (defenders === 4 && forwards === 3) return "4-3-3";
+  if (defenders === 4 && forwards === 2) return "4-4-2";
+  if (defenders >= 5 && mids >= 3) return "5-3-2";
+  if (defenders === 3 && mids >= 5) return "3-5-2";
+  if (mids === 5) return "4-5-1";
   return "4-3-3";
 }
+
 
 // === Escolhe formação do Palmeiras para neutralizar o adversário ===
 function chooseCounterFormation(opponentFormation, possession) {
@@ -144,6 +146,7 @@ const FORMATIONS = {
 };
 
 // === Gera o time do Palmeiras ===
+// === Palmeiras (verde/red) joga da DIREITA → ESQUERDA ===
 function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
   const greenAI = [];
@@ -157,26 +160,28 @@ function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
   }
 
   for (const pos of formation) {
-    const jitter = Math.random() * 8 - 4;
+    const jitter = Math.random() * 6 - 3;
     let baseX;
 
     if (phase === "ataque") {
-      baseX = pos.zone[0] + offsetX; // direita → esquerda
+      // Palmeiras avança da direita para a esquerda
+      baseX = FIELD_WIDTH - pos.zone[0] - offsetX;
     } else {
-      baseX = FIELD_WIDTH - pos.zone[0] - offsetX; // defesa à direita
+      // Palmeiras recua (mantém defesa sólida à direita)
+      baseX = FIELD_WIDTH - pos.zone[0] + offsetX;
     }
 
     baseX = Math.max(20, Math.min(FIELD_WIDTH - 20, baseX));
     greenAI.push({ id: pos.id, left: baseX, top: pos.zone[1] + jitter });
   }
 
-  const gkTop = ball && typeof ball.top === "number"
-    ? FIELD_HEIGHT / 2 + (ball.top - FIELD_HEIGHT / 2) * 0.3
-    : FIELD_HEIGHT / 2;
+  // Goleiro fixo no gol da direita (não segue a bola)
+  const gkTop = FIELD_HEIGHT / 2;
   greenAI.unshift({ id: 1, left: FIELD_WIDTH - 10, top: gkTop });
 
   return { greenAI };
 }
+
 
 // === Endpoint principal /ai/analyze ===
 app.post("/ai/analyze", async (req, res) => {
@@ -225,7 +230,7 @@ Fala como Abel Ferreira sobre como o Palmeiras se organiza taticamente para neut
       }
     }
 
-    res.json({ detectedFormation, green: greenAI, coachComment });
+    res.json({ opponentFormation, detectedFormation, green: greenAI, coachComment });
   } catch (err) {
     console.error("Erro /ai/analyze", err);
     res.status(500).json({ error: "Erro interno na análise" });
