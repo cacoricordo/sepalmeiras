@@ -239,20 +239,25 @@ function buildRedFromFormation(formationKey, ball, phase = 'defesa') {
 // === Endpoint /ai/analyze ===
 app.post("/ai/analyze", async (req, res) => {
   try {
-    // corrige spelling e pega possession
     const { green = [], black = [], ball = {}, possession = 'preto' } = req.body;
-    const players = (black && black.length) ? black : green;
-    if (!players.length) return res.status(400).json({ error: "Nenhum jogador recebido" });
 
-// === Determine fase tática ===
+    // Palmeiras é o time verde, adversário é o preto
+    const palmeiras = green;
+    const adversario = black.length ? black : buildRedFromFormation("4-3-3", ball).red;
 
-const phase = possession === 'verde' ? 'ataque' : 'defesa';
-const tacticalPhase = detectTacticalPhase(players, ball, possession);
-const detectedFormation = pickFormationByPhase(tacticalPhase);
+    // === Define quem será analisado ===
+    // A IA analisa SEMPRE o adversário (time preto)
+    const players = adversario;
 
-const { red } = buildRedFromFormation(detectedFormation, ball, phase);
+    // === Determina fase tática conforme posse ===
+    const phase = possession === 'verde' ? 'ataque' : 'defesa';
+    const tacticalPhase = detectTacticalPhase(players, ball, possession);
+    const detectedFormation = pickFormationByPhase(tacticalPhase);
 
-    // spread / bloco / compactacao
+    // === Gera novo posicionamento do adversário ===
+    const { red } = buildRedFromFormation(detectedFormation, ball, phase);
+
+    // === Análise de bloco e compactação ===
     const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));
     const spreadY = Math.max(...players.map(p => p.top)) - Math.min(...players.map(p => p.top));
     const bloco = spreadX < 250 ? "baixo" : spreadX < 350 ? "médio" : "alto";
@@ -260,17 +265,16 @@ const { red } = buildRedFromFormation(detectedFormation, ball, phase);
 
     let coachComment = `O adversário está num ${detectedFormation}, fase ${tacticalPhase}.`;
 
-
+    // === Integração com OpenRouter (Abel Ferreira) ===
     if (process.env.OPENROUTER_KEY) {
       try {
-     const prompt = `
-O adversário está na fase ${tacticalPhase}, com ${detectedFormation}.
+        const prompt = `
+O Palmeiras defende à direita e ataca para a esquerda.
+O adversário (time preto) está na fase ${tacticalPhase}, jogando num ${detectedFormation}.
 Bloco ${bloco}, compactação ${compactacao}.
 A bola está com o time ${possession === 'verde' ? 'verdes (Palmeiras)' : 'pretos (adversário)'}.
-Analisa como Abel Ferreira, descrevendo como reagir taticamente em 3 linhas curtas.
+Faz um comentário tático realista, como Abel Ferreira, sobre o momento atual e possíveis ajustes.
 `;
-
-        // chama OpenRouter (mantém sua implementação)
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -282,11 +286,11 @@ Analisa como Abel Ferreira, descrevendo como reagir taticamente em 3 linhas curt
             messages: [
               {
                 role: "system",
-                content: `Tu és Abel Ferreira, treinador do Palmeiras. Analisa formações e faz recomendações táticas.`
+                content: `Tu és Abel Ferreira, treinador do Palmeiras. Analisa o jogo com profundidade tática e precisão situacional.`
               },
               { role: "user", content: prompt }
             ],
-            max_tokens: 180,
+            max_tokens: 220,
             temperature: 0.8
           })
         });
@@ -298,12 +302,14 @@ Analisa como Abel Ferreira, descrevendo como reagir taticamente em 3 linhas curt
       }
     }
 
+    // === Retorno para o front ===
     res.json({ detectedFormation, red, coachComment });
   } catch (err) {
     console.error("Erro /ai/analyze", err);
     res.status(500).json({ error: "Erro interno na análise" });
   }
 });
+
 
 // === Chat do Abel Ferreira ===
 app.post("/api/chat", async (req, res) => {
