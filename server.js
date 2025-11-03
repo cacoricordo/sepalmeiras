@@ -162,17 +162,16 @@ const FORMATIONS = {
 };
 
 // === Gera time vermelho com offset tático ===
-function buildRedFromFormation(formationKey, ball, phase) {
+function buildRedFromFormation(formationKey, ball, phase = 'defesa') {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
   const red = [];
 
-let offsetX = 0;
+  let offsetX = 0;
   switch (formationKey) {
     case "1-1-8": offsetX = 160; break;
     case "4-2-4": offsetX = 100; break;
     case "W.M": offsetX = 60; break;
     case "3-5-2": offsetX = 30; break;
-    default: offsetX = 0; break;
   }
 
   for (const pos of formation) {
@@ -180,21 +179,22 @@ let offsetX = 0;
     let baseX;
 
     if (phase === "ataque") {
-      // 👉 atacante avança da direita para a esquerda
-      baseX = pos.zone[0] + offsetX;
-    } else {
-      // 🧱 defensor recua da esquerda para a direita
+      // Palmeiras em posse → adversário recua (defende à direita)
       baseX = FIELD_WIDTH - pos.zone[0] - offsetX;
+    } else {
+      // Palmeiras sem posse → adversário avança (ataca da esquerda)
+      baseX = pos.zone[0] + offsetX;
     }
 
     baseX = Math.max(20, Math.min(FIELD_WIDTH - 20, baseX));
     red.push({ id: pos.id, left: baseX, top: pos.zone[1] + jitter });
   }
 
-  // Goleiro fixo no lado direito do campo
   const gkTop = ball && typeof ball.top === "number"
     ? FIELD_HEIGHT / 2 + (ball.top - FIELD_HEIGHT / 2) * 0.3
     : FIELD_HEIGHT / 2;
+
+  // Goleiro fixo no gol da direita
   red.unshift({ id: 23, left: FIELD_WIDTH - 10, top: gkTop });
 
   return { red };
@@ -208,10 +208,14 @@ app.post("/ai/analyze", async (req, res) => {
     const players = (black && black.length) ? black : green;
     if (!players.length) return res.status(400).json({ error: "Nenhum jogador recebido" });
 
-    // detect formation & build red
-    const phase = possession === 'verde' ? 'ataque' : 'defesa';
-    const detectedFormation = detectFormationAdvanced(players);
-    const { red } = buildRedFromFormation(detectedFormation, ball, phase);
+// === Determine fase tática ===
+// Palmeiras joga com defesa à direita, ataque à esquerda
+// Se Palmeiras (verde) tem a posse → ataque
+// Caso contrário → defesa
+const phase = possession === 'verde' ? 'ataque' : 'defesa';
+const detectedFormation = detectFormationAdvanced(players);
+const { red } = buildRedFromFormation(detectedFormation, ball, phase);
+
 
     // spread / bloco / compactacao
     const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));

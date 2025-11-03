@@ -452,17 +452,30 @@ const ctx = canvas?.getContext("2d", { willReadFrequently: true });
     });
   }
 
-  // === Detecta posse de bola ===
-  function detectBallPossession(green, ball) {
-    let minDist = Infinity;
-    for (const p of green) {
-      const dx = p.left - ball.left;
-      const dy = p.top - ball.top;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < minDist) minDist = dist;
-    }
-    return minDist < 50 ? "verde" : "preto";
+// === Detecta posse de bola considerando lado do campo ===
+// Palmeiras defende à DIREITA e ataca à ESQUERDA
+function detectBallPossession(green, ball) {
+  let minDistGreen = Infinity;
+
+  for (const p of green) {
+    const dx = p.left - ball.left;
+    const dy = p.top - ball.top;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < minDistGreen) minDistGreen = dist;
   }
+
+  // Bola na metade esquerda do campo → Palmeiras provavelmente em ataque
+  // Bola na metade direita → Adversário em posse
+  const ballOnLeftSide = ball.left < window.innerWidth / 2;
+
+  // Critério híbrido: distância + lado do campo
+  if (minDistGreen < 50 || ballOnLeftSide) {
+    return "verde"; // Palmeiras em posse (ataque direita→esquerda)
+  } else {
+    return "preto"; // Adversário em posse (ataque esquerda→direita)
+  }
+}
+
 
   // === Botão da Análise IA ===
 const aiBtn = document.getElementById('ai-analise-btn');
