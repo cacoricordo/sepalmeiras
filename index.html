@@ -477,64 +477,66 @@ function detectBallPossession(green, ball) {
   }
 }
 
+  // === Botão da Análise IA ===
+  const aiBtn = document.getElementById('ai-analise-btn');
 
-// === Botão da Análise IA ===
-const aiBtn = document.getElementById('ai-analise-btn');
-
-aiBtn.addEventListener('click', async function() {
+  aiBtn.addEventListener('click', async function() {
   aiBtn.disabled = true;
   aiBtn.textContent = "Analisando... ⚙️";
   notify("🤖 Abel está avaliando o adversário e ajustando o Palmeiras...", 3000);
 
-  try {
-    // Coleta posições
-    const green = getPositions('circle'); 
-    const black = getPositions('black'); // mantém compatível
-    const ball = getBall();
-    const possession = detectBallPossession(green, ball);
+  const hudBox = document.getElementById("tactical-hud");
+  const hudForm = document.getElementById("hud-formations");
+  const hudPhase = document.getElementById("hud-phase");
+  const hudBlock = document.getElementById("hud-block");
 
-    // Chama o novo backend (v11.8)
-    const res = await fetch(`https://sepalmeiras.onrender.com/ai/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+  try {
+    const green = getPositions('circle');
+    const black = getPositions('black');
+    const ball = getBall();
+
+    // === Detecção de posse (pela bola mais próxima) ===
+    const closestGreen = Math.min(...green.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
+    const closestBlack = Math.min(...black.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
+    const possession = closestGreen < closestBlack ? "verde" : "preto";
+
+    const res = await fetch(`${window.location.origin}/ai/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ green, black, ball, possession })
     });
 
-    if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
-    // Exibe no canto superior direito (opcional)
-    const box = document.getElementById('tactical-status');
-    if (box) {
-      box.style.display = 'block';
-      box.innerHTML = `
-        <strong>📊 Análise Tática</strong><br>
-        Adversário: <b>${data.opponentFormation || '?'}</b><br>
-        Palmeiras: <b>${data.detectedFormation || '?'}</b>
-      `;
-      box.style.opacity = '1';
-      setTimeout(() => { box.style.opacity = '0'; }, 7000);
-    }
+    // === Atualiza HUD Tático ===
+    hudForm.textContent = `Adversário: ${data.opponentFormation || "?"} | Palmeiras: ${data.detectedFormation || "?"}`;
+    hudPhase.textContent = `Fase: ${data.phase || "?"}`;
+    hudBlock.textContent = `Bloco: ${data.bloco || "?"} | Compactação: ${data.compactacao || "?"}`;
+    hudBox.style.display = "block";
+    hudBox.style.background = possession === "verde"
+      ? "rgba(0,128,0,0.8)"
+      : "rgba(50,50,50,0.8)";
+    hudBox.style.borderColor = possession === "verde" ? "#00ff66" : "#999";
+    hudBox.style.opacity = "1";
 
-    // Move jogadores do Palmeiras conforme IA
-    if (data.green) {
-      animateTeam('circle', data.green);
-    }
+    // === Movimenta o Palmeiras ===
+    if (data.green) animateTeam("circle", data.green);
 
-    // Exibe fala do Abel
+    // === Exibe o comentário do Abel ===
     if (data.coachComment) {
-      setTimeout(() => showAbelCommentPopup(data.coachComment), 6000);
+      setTimeout(() => showAbelCommentPopup(data.coachComment), 5000);
     }
 
   } catch (err) {
     console.error("AI analyze error:", err);
-    notify("❌ Erro na análise da IA! Verifique conexão.", 5000);
+    notify("❌ Erro na análise da IA!", 4000);
   } finally {
     aiBtn.disabled = false;
     aiBtn.textContent = "Análise IA";
+    setTimeout(() => (hudBox.style.opacity = "0.3"), 10000);
   }
 });
-
 </script>
 
 
@@ -970,6 +972,29 @@ function speakPlayerNumber(playerId) {
   speechSynthesis.speak(utter);
 }
 </script>
+<!-- === HUD TÁTICO AVANÇADO === -->
+<div id="tactical-hud" style="
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 230px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  text-align: left;
+  line-height: 1.4;
+  border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: 0 0 10px rgba(0,0,0,0.6);
+  display: none;
+  z-index: 999;
+">
+  <b>📊 Inteligência Tática</b><br>
+  <span id="hud-formations">Adversário: ? | Palmeiras: ?</span><br>
+  <span id="hud-phase">Fase: ?</span><br>
+  <span id="hud-block">Bloco: ? | Compactação: ?</span>
+</div>
 
 
 </body>
