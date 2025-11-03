@@ -147,6 +147,7 @@ const FORMATIONS = {
 
 // === Gera o time do Palmeiras ===
 // === Palmeiras (verde/red) joga da DIREITA → ESQUERDA ===
+// === Palmeiras (verde/red) joga da DIREITA → ESQUERDA ===
 function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
   const greenAI = [];
@@ -159,6 +160,7 @@ function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
     case "3-5-2": offsetX = 60; break;
   }
 
+  // Gera jogadores de linha (13 a 22)
   for (const pos of formation) {
     const jitter = Math.random() * 6 - 3;
     let baseX;
@@ -167,7 +169,7 @@ function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
       // Palmeiras avança da direita para a esquerda
       baseX = FIELD_WIDTH - pos.zone[0] - offsetX;
     } else {
-      // Palmeiras recua (mantém defesa sólida à direita)
+      // Palmeiras recua (defende à direita)
       baseX = FIELD_WIDTH - pos.zone[0] + offsetX;
     }
 
@@ -175,13 +177,12 @@ function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
     greenAI.push({ id: pos.id, left: baseX, top: pos.zone[1] + jitter });
   }
 
-  // Goleiro fixo no gol da direita (não segue a bola)
+  // Goleiro 23 fixo no gol da direita (não se move com a bola)
   const gkTop = FIELD_HEIGHT / 2;
-  greenAI.unshift({ id: 1, left: FIELD_WIDTH - 10, top: gkTop });
+  greenAI.push({ id: 23, left: FIELD_WIDTH - 10, top: gkTop });
 
   return { greenAI };
 }
-
 
 // === Endpoint principal /ai/analyze ===
 app.post("/ai/analyze", async (req, res) => {

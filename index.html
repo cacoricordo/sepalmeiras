@@ -57,7 +57,7 @@
   <div id="circle9" class="circle">9</div>
   <div id="circle10" class="circle">10</div>
   <div id="circle11" class="circle">11</div>
-  <div id="circle12" class="circle" style="background:#FF0000;">A</div>
+  <div id="circle12" class="circle" style="background:#FFFFFF;"></div>
   <div id="circle13" class="circle" style="background:#33FFCC;">2</div>
   <div id="circle14" class="circle" style="background:#33FFCC;">6</div>
   <div id="circle15" class="circle" style="background:#33FFCC;">3</div>
@@ -400,6 +400,7 @@ const ctx = canvas?.getContext("2d", { willReadFrequently: true });
 
   function animateTeam(prefix, positions) {
     for (const p of positions) {
+      if (p.id === 23) return;
       const el = document.getElementById(prefix + p.id);
       if (el) {
         el.style.transition = 'left 1s ease, top 1s ease';
