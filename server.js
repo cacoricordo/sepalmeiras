@@ -250,7 +250,7 @@ app.post("/ai/analyze", async (req, res) => {
     const players = adversario;
 
     // === Determina fase tática conforme posse ===
-    const phase = possession === 'verde' ? 'ataque' : 'defesa';
+    const phase = possession === 'verde' ? 'defesa' : 'ataque';
     const tacticalPhase = detectTacticalPhase(players, ball, possession);
     const detectedFormation = pickFormationByPhase(tacticalPhase);
 
