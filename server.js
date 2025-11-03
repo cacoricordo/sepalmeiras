@@ -162,7 +162,7 @@ const FORMATIONS = {
 };
 
 // === Gera time vermelho com offset tático ===
-function buildRedFromFormation(formationKey, ball) {
+function buildRedFromFormation(formationKey, ball, phase) {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
   const red = [];
 
@@ -211,7 +211,7 @@ app.post("/ai/analyze", async (req, res) => {
     // detect formation & build red
     const phase = possession === 'verde' ? 'ataque' : 'defesa';
     const detectedFormation = detectFormationAdvanced(players);
-    const { red } = buildRedFromFormation(detectedFormation, ball, pahse);
+    const { red } = buildRedFromFormation(detectedFormation, ball, phase);
 
     // spread / bloco / compactacao
     const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));
