@@ -166,7 +166,7 @@ function buildRedFromFormation(formationKey, ball) {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
   const red = [];
 
-  let offsetX = 0;
+let offsetX = 0;
   switch (formationKey) {
     case "1-1-8": offsetX = 160; break;
     case "4-2-4": offsetX = 100; break;
@@ -177,11 +177,21 @@ function buildRedFromFormation(formationKey, ball) {
 
   for (const pos of formation) {
     const jitter = Math.random() * 8 - 4;
-    let baseX = FIELD_WIDTH - pos.zone[0] - offsetX;
+    let baseX;
+
+    if (phase === "ataque") {
+      // 👉 atacante avança da direita para a esquerda
+      baseX = pos.zone[0] + offsetX;
+    } else {
+      // 🧱 defensor recua da esquerda para a direita
+      baseX = FIELD_WIDTH - pos.zone[0] - offsetX;
+    }
+
     baseX = Math.max(20, Math.min(FIELD_WIDTH - 20, baseX));
     red.push({ id: pos.id, left: baseX, top: pos.zone[1] + jitter });
   }
 
+  // Goleiro fixo no lado direito do campo
   const gkTop = ball && typeof ball.top === "number"
     ? FIELD_HEIGHT / 2 + (ball.top - FIELD_HEIGHT / 2) * 0.3
     : FIELD_HEIGHT / 2;
@@ -199,8 +209,9 @@ app.post("/ai/analyze", async (req, res) => {
     if (!players.length) return res.status(400).json({ error: "Nenhum jogador recebido" });
 
     // detect formation & build red
+    const phase = possession === 'verde' ? 'ataque' : 'defesa';
     const detectedFormation = detectFormationAdvanced(players);
-    const { red } = buildRedFromFormation(detectedFormation, ball);
+    const { red } = buildRedFromFormation(detectedFormation, ball, pahse);
 
     // spread / bloco / compactacao
     const spreadX = Math.max(...players.map(p => p.left)) - Math.min(...players.map(p => p.left));

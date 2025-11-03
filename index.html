@@ -308,186 +308,61 @@ socket.on("update_circle", (data) => {
   }
 });
 
-// === PEN MODE PRO 2.0 SYNC ===
-(function() {
-  const penBtn = document.getElementById("pen-path-btn");
-  const canvas = document.getElementById("trace-canvas") || (() => {
-    const c = document.createElement("canvas");
-    c.id = "trace-canvas";
-    Object.assign(c.style, {
-      position: "absolute",
-      top: "0",
-      left: "0",
-      width: "100%",
-      height: "100%",
-      zIndex: "1",
-      pointerEvents: "none"
-    });
-    document.body.appendChild(c);
-    return c;
-  })();
 
-  const ctx = canvas.getContext("2d");
-  let penMode = false;
-  let drawing = false;
-  let lastPoint = null;
-  let pointerId = null;
-  let currentPath = [];
-
-  // === resize canvas (DPI fix) ===
-  function resizeCanvasForDisplay() {
-    const ratio = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * ratio;
-    canvas.height = rect.height * ratio;
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-  }
-  resizeCanvasForDisplay();
-  window.addEventListener("resize", resizeCanvasForDisplay);
-
-  // === botão ===
-  penBtn.addEventListener("click", () => {
-    penMode = !penMode;
-    penBtn.style.background = penMode ? "#33aaff" : "#222";
-    penBtn.textContent = penMode ? "✎ Desenhando..." : "✎ Desenho Tático";
-    canvas.style.pointerEvents = penMode ? "auto" : "none";
-    canvas.style.zIndex = penMode ? "1000" : "1";
-  });
-
-  // === coordenadas ===
-  function getCoord(evt) {
-    const rect = canvas.getBoundingClientRect();
-    if (evt.touches && evt.touches[0]) {
-      return {
-        x: evt.touches[0].clientX - rect.left,
-        y: evt.touches[0].clientY - rect.top
-      };
-    } else {
-      return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-    }
-  }
-
-  // === feather (largura variável com suavização) ===
-  function drawLineTo(x, y, color = "rgba(255,51,51,0.9)") {
-    if (!lastPoint) {
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      lastPoint = { x, y, t: Date.now() };
-      return;
-    }
-
-    const now = Date.now();
-    const dx = x - lastPoint.x;
-    const dy = y - lastPoint.y;
-    const dt = now - lastPoint.t || 1;
-    const velocity = Math.sqrt(dx * dx + dy * dy) / dt;
-    const targetWidth = Math.max(3, Math.min(10, 12 / (velocity + 0.2)));
-
-    ctx.lineWidth = ctx.lineWidth * 0.7 + targetWidth * 0.3;
-    ctx.shadowColor = color.replace("0.9", "0.4");
-    ctx.shadowBlur = 6;
-    ctx.strokeStyle = color;
-
-    ctx.lineTo(x, y);
-    ctx.stroke();
-
-    lastPoint = { x, y, t: now };
-  }
-
-  // === desenha um caminho recebido de outro usuário ===
-  function drawRemotePath(path, color = "rgba(51,153,255,0.9)") {
-    if (!Array.isArray(path) || path.length < 2) return;
-    ctx.beginPath();
-    ctx.moveTo(path[0][0], path[0][1]);
-    for (let i = 1; i < path.length; i++) {
-      ctx.lineTo(path[i][0], path[i][1]);
-    }
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
-    ctx.shadowColor = color.replace("0.9", "0.3");
-    ctx.shadowBlur = 4;
-    ctx.stroke();
-    ctx.closePath();
-  }
-
-  // === POINTER EVENTS ===
-  canvas.addEventListener("pointerdown", (e) => {
-    if (!penMode) return;
-    drawing = true;
-    pointerId = e.pointerId;
-    lastPoint = null;
-    currentPath = [];
-    try { canvas.setPointerCapture(pointerId); } catch {}
-    const { x, y } = getCoord(e);
-    drawLineTo(x, y);
-    currentPath.push([x, y]);
-  });
-
-  canvas.addEventListener("pointermove", (e) => {
-    if (!penMode || !drawing || e.pointerId !== pointerId) return;
-    const { x, y } = getCoord(e);
-    drawLineTo(x, y);
-    currentPath.push([x, y]);
-  });
-
-  canvas.addEventListener("pointerup", () => {
-    if (!penMode) return;
-    drawing = false;
-    ctx.closePath();
-
-    // envia o traço para o servidor (SYNC)
-    if (currentPath.length > 1 && window.socket) {
-      socket.emit("path_draw", { path: currentPath });
-    }
-    lastPoint = null;
-    currentPath = [];
-  });
-
-  // === TOUCH ===
-  canvas.style.touchAction = "none";
-  canvas.addEventListener("touchstart", (e) => {
-    if (!penMode) return;
-    drawing = true;
-    lastPoint = null;
-    currentPath = [];
-    const { x, y } = getCoord(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    currentPath.push([x, y]);
-    e.preventDefault();
-  }, { passive: false });
-
-  canvas.addEventListener("touchmove", (e) => {
-    if (!penMode || !drawing) return;
-    const { x, y } = getCoord(e);
-    drawLineTo(x, y);
-    currentPath.push([x, y]);
-    e.preventDefault();
-  }, { passive: false });
-
-  canvas.addEventListener("touchend", () => {
-    drawing = false;
-    ctx.closePath();
-
-    if (currentPath.length > 1 && window.socket) {
-      socket.emit("path_draw", { path: currentPath });
-    }
-    lastPoint = null;
-    currentPath = [];
-  }, { passive: false });
+const canvas = document.getElementById("trace-canvas");
+const ctx = canvas?.getContext("2d", { willReadFrequently: true });
 
   // === RECEBE DESENHOS DE OUTROS USUÁRIOS ===
   if (window.socket) {
     socket.on("path_draw", (data) => {
       if (!data || !Array.isArray(data.path)) return;
-      drawRemotePath(data.path);
+      const rect = canvas.getBoundingClientRect();
+
+      // Reconstrói coordenadas reais conforme o tamanho do canvas local
+      const scaled = data.path.map(([nx, ny]) => [nx * rect.width, ny * rect.height]);
+
+      // Cor por camada tática
+      const color = data.layer === "defesa" 
+        ? "rgba(51,153,255,0.9)"
+        : data.layer === "bolaparada"
+        ? "rgba(255,215,0,0.9)"
+        : "rgba(255,51,51,0.9)"; // ataque padrão
+
+      // Desenha suavizado e aplica fade local
+      ctx.beginPath();
+      ctx.moveTo(scaled[0][0], scaled[0][1]);
+      for (let i = 1; i < scaled.length - 1; i++) {
+        const xc = (scaled[i][0] + scaled[i + 1][0]) / 2;
+        const yc = (scaled[i][1] + scaled[i + 1][1]) / 2;
+        ctx.quadraticCurveTo(scaled[i][0], scaled[i][1], xc, yc);
+      }
+      ctx.lineTo(scaled[scaled.length - 1][0], scaled[scaled.length - 1][1]);
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color.replace("0.9", "0.3");
+      ctx.shadowBlur = 6;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.closePath();
+
+      // 🔥 fade automático em 5s (sincronizado visualmente)
+      setTimeout(() => {
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.globalAlpha = 0.15;
+        ctx.beginPath();
+        ctx.moveTo(scaled[0][0], scaled[0][1]);
+        for (let i = 1; i < scaled.length - 1; i++) {
+          const xc = (scaled[i][0] + scaled[i + 1][0]) / 2;
+          const yc = (scaled[i][1] + scaled[i + 1][1]) / 2;
+          ctx.quadraticCurveTo(scaled[i][0], scaled[i][1], xc, yc);
+        }
+        ctx.lineTo(scaled[scaled.length - 1][0], scaled[scaled.length - 1][1]);
+        ctx.stroke();
+        ctx.closePath();
+        ctx.restore();
+      }, 5000);
     });
   }
-})();
-
-
 </script>
 
 <script>
@@ -590,79 +465,70 @@ socket.on("update_circle", (data) => {
   }
 
   // === Botão da Análise IA ===
-  const aiBtn = document.getElementById('ai-analise-btn');
-  aiBtn.addEventListener('click', async function() {
-    aiBtn.disabled = true;
-    aiBtn.textContent = "Analisando... ⚙️";
-    notify("🤖 O Abel está avaliando o adversário...", 3000);
+const aiBtn = document.getElementById('ai-analise-btn');
 
-    try {
-      // coleta posições
-      const green = getPositions('circle'); // Palmeiras
-      const black = getPositions('red');    // Adversário (ajuste prefixo se necessário)
-      const ball = getBall();
-      const possession = detectBallPossession(green, ball); // "verde" | "preto"
+aiBtn.addEventListener('click', async function() {
+  aiBtn.disabled = true;
+  aiBtn.textContent = "Analisando... ⚙️";
+  notify("🤖 O Abel está avaliando o adversário...", 3000);    
 
-      // envia POSSESSION também
-      const res = await fetch(`https://sepalmeiras.onrender.com/ai/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ green, black, ball, possession })
-      });
+  try {
+    // coleta posições
+    const green = getPositions('circle'); 
+    const black = getPositions('black');
+    const ball = getBall();
+    const possession = detectBallPossession(green, ball);
 
-      if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
-      const data = await res.json();
+    // envia POSSESSION também
+    const res = await fetch(`https://sepalmeiras.onrender.com/ai/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ green, black, ball, possession })
+    });
 
-      if (data.detectedFormation) {
-        notify(`🧠 Esquema adversário: ${data.detectedFormation}`, 4000);
-      }
+    if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
+    const data = await res.json();
 
-      // ===== AÇÃO 4: se Palmeiras em posse, avançar time verde localmente =====
-      const attackAdvance = possession === "verde" ? 50 : 0;
-
-      if (data.red) {
-        animateTeam('circle', data.red);
-
-//    const advanced = data.red.map(p => {
-//    if (p.id === 13) return p;
-//    let newLeft = p.left + attackAdvance;
-//        newLeft = Math.max(10, Math.min(newLeft, (window.innerWidth || 600) - 40));
-//    return { id: p.id, left: newLeft, top: p.top };
-//    });
-
-      const advanced = data.red.map(p => {
-        if (p.id === 13) return p; // goleiro parado
-
-        // defensores (14–17) recuam menos
-        const defenseFactor = (p.id >= 14 && p.id <= 17) ? 0.4 : 1.0;
-        let newLeft = p.left + attackAdvance * defenseFactor;
-
-        newLeft = Math.max(10, Math.min(newLeft, (window.innerWidth || 600) - 40));
-        return { id: p.id, left: newLeft, top: p.top };
-      });
-
-          setTimeout(() => animateTeam('circle', advanced), 300);
-          notify("🟢 Palmeiras avança em ataque coordenado!", 3000);
-        } else {
-          notify("⚫ Ajuste defensivo aplicado ao adversário.", 2500);
-        }
-      }
-
-      // === Pop-up do Abel 15s depois ===
-      if (data.coachComment) {
-        setTimeout(() => {
-          showAbelCommentPopup(data.coachComment);
-        }, 15000);
-      }
-
-    } catch (err) {
-      console.error("AI analyze error:", err);
-      notify("❌ Erro na análise da IA! Verifique conexão.", 5000);
-    } finally {
-      aiBtn.disabled = false;
-      aiBtn.textContent = "AI Análise";
+    // === Retornos da IA ===
+    if (data.detectedFormation) {
+      notify(`🧠 Esquema adversário: ${data.detectedFormation}`, 4000);
     }
-  });
+
+    // ===== AÇÃO 4: se Palmeiras em posse, avançar time verde localmente =====
+    const attackAdvance = possession === "verde" ? 50 : 0;
+
+    if (data.red) {
+      animateTeam('circle', data.red);
+
+      if (attackAdvance > 0) {
+        const advanced = data.red.map(p => {
+          if (p.id === 13) return p; // impede o goleiro de recuar/avançar
+          let newLeft = p.left + attackAdvance;
+          newLeft = Math.max(10, Math.min(newLeft, (window.innerWidth || 600) - 40));
+          return { id: p.id, left: newLeft, top: p.top };
+        });
+        setTimeout(() => animateTeam('circle', advanced), 300);
+        notify("🟢 Palmeiras avança em ataque coordenado!", 3000);
+      } else {
+        notify("⚫ Ajuste defensivo aplicado ao adversário.", 2500);
+      }
+    }
+
+    if (data.coachComment) {
+      setTimeout(() => {
+        showAbelCommentPopup(data.coachComment);
+      }, 15000);
+    }
+
+  } catch (err) {
+    console.error("AI analyze error:", err);
+    notify("❌ Erro na análise da IA! Verifique conexão.", 5000);
+  } finally {
+    aiBtn.disabled = false;
+    aiBtn.textContent = "AI Análise";
+  }
+});
+
 </script>
 
 
@@ -696,7 +562,195 @@ document.addEventListener("fullscreenchange", () => {
   }
 });
 </script>
-<!-- === Chat do Treinador Português === -->
+<script>
+/* ===== Desenho Tático: correção para offset mobile (HiDPI + CSS size sync) ===== */
+(function(){
+  const canvas = document.getElementById("trace-canvas");
+  const penBtn = document.getElementById("pen-path-btn");
+  const socket = window.socket || (window.io ? io() : null);
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+
+  // Faz o canvas ocupar um tamanho CSS estável (se quiser, ajuste aqui)
+  // Se preferir que o canvas seja responsivo, ajuste o CSS; aqui usamos o rect atual.
+  function resizeCanvasForDisplay() {
+    const ratio = window.devicePixelRatio || 1;
+    // pega o tamanho CSS real do canvas (dependendo do layout)
+    const rect = canvas.getBoundingClientRect();
+
+    // forçar CSS width/height para o tamanho do rect (garante consistência)
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+
+    // ajusta o buffer físico do canvas para HiDPI
+    canvas.width = Math.round(rect.width * ratio);
+    canvas.height = Math.round(rect.height * ratio);
+
+    // faz o ctx trabalhar em CSS pixels (transforma coords automaticamente)
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+  }
+
+  // chama no load e quando a viewport muda
+  resizeCanvasForDisplay();
+  window.addEventListener('resize', resizeCanvasForDisplay);
+  // também quando há rolagem (às vezes rect muda por UI do navegador)
+  window.addEventListener('scroll', () => {
+    // atualização leve — só se o canvas estiver visível
+    resizeCanvasForDisplay();
+  }, { passive: true });
+
+  // estado
+  let penMode = false;
+  let drawing = false;
+  let currentPath = [];
+  let pointerId = null;
+
+  // Toggle pen button: ativa/desativa captura de eventos
+  penBtn.addEventListener('click', () => {
+    penMode = !penMode;
+    penBtn.style.background = penMode ? "#33aaff" : "#222";
+    canvas.style.pointerEvents = penMode ? "auto" : "none";
+    penBtn.textContent = penMode ? "✎ Desenhando..." : "✎ Desenho Tático";
+    if (penMode) {
+      canvas.style.zIndex = "1000";
+    } else {
+      canvas.style.zIndex = "1";
+    }
+  });
+
+  // evita scroll durante desenho
+  canvas.style.touchAction = "none";
+
+  // converte evento -> coordenada em CSS pixels relativa ao canvas
+  function getCoordFromEvent(evt) {
+    const rect = canvas.getBoundingClientRect();
+    // pointer events: clientX/clientY
+    if (evt.clientX !== undefined && evt.clientY !== undefined) {
+      return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    }
+    // touch fallback
+    if (evt.touches && evt.touches[0]) {
+      return { x: evt.touches[0].clientX - rect.left, y: evt.touches[0].clientY - rect.top };
+    }
+    return { x: 0, y: 0 };
+  }
+
+  // pointer events (recomendado)
+  canvas.addEventListener('pointerdown', (e) => {
+    if (!penMode || !e.isPrimary) return;
+    drawing = true;
+    pointerId = e.pointerId;
+    try { canvas.setPointerCapture(pointerId); } catch (er) {}
+    const { x, y } = getCoordFromEvent(e);
+    currentPath = [[x, y]];
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!penMode || !drawing || e.pointerId !== pointerId) return;
+    const { x, y } = getCoordFromEvent(e);
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = "#ff3333";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    currentPath.push([x, y]);
+  });
+
+  function finishDrawing(e) {
+    if (!drawing) return;
+    drawing = false;
+    try { canvas.releasePointerCapture(pointerId); } catch (er) {}
+    ctx.closePath();
+    if (socket && currentPath.length > 1) {
+      socket.emit('path_draw', { path: currentPath });
+    }
+
+    setTimeout(() => {
+      ctx.save();
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.globalAlpha = 1.0;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }, 4000);
+
+    currentPath = [];
+    pointerId = null;
+  }
+
+  canvas.addEventListener('pointerup', finishDrawing);
+  canvas.addEventListener('pointercancel', finishDrawing);
+  canvas.addEventListener('pointerout', (e) => {
+    if (drawing && e.pointerId === pointerId) finishDrawing(e);
+  });
+
+  // touch fallback (mantém compatibilidade)
+  canvas.addEventListener('touchstart', (e) => {
+    if (!penMode) return;
+    e.preventDefault();
+    const c = getCoordFromEvent(e);
+    drawing = true;
+    currentPath = [[c.x, c.y]];
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (!penMode || !drawing) return;
+    e.preventDefault();
+    const c = getCoordFromEvent(e);
+    ctx.lineTo(c.x, c.y);
+    ctx.strokeStyle = "#ff3333";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    currentPath.push([c.x, c.y]);
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    if (!penMode || !drawing) return;
+    e.preventDefault();
+    drawing = false;
+    ctx.closePath();
+
+    if (socket && currentPath.length > 1) socket.emit('path_draw', { path: currentPath });
+    setTimeout(() => {
+      ctx.save();
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.globalAlpha = 1.0;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }, 4000);
+
+    currentPath = [];
+  }, { passive: false });
+
+  // recebe e desenha paths de outros clientes (coord em CSS pixels)
+  if (socket) {
+    socket.on('path_draw', (data) => {
+      if (!data || !Array.isArray(data.path) || data.path.length === 0) return;
+      ctx.beginPath();
+      for (let i = 0; i < data.path.length; i++) {
+        const [x, y] = data.path[i];
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = "#ff3333";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.closePath();
+      setTimeout(() => {
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.globalAlpha = 1.0;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }, 4000);
+    });
+  }
+})();
+</script>
+<!-- === Chat do Treinador Abel Ferreira === -->
 <div id="chat-container" style="
   position:fixed;bottom:20px;right:20px;width:300px;max-height:400px;
   background:rgba(0,0,0,0.8);color:#fff;border-radius:10px;
@@ -865,5 +919,52 @@ socket.on("ball-move", (data) => {
   display:none;
   transition:opacity 0.3s ease;
 "></div>
+<script>
+/* === SpeechSynthesis Initialization (Speech Fix Pro) === */
+let voicesReady = false;
+let selectedVoice = null;
+
+// Inicializa as vozes (chamado depois de interação do usuário)
+function initSpeech() {
+  // Tenta carregar lista de vozes
+  const loadVoices = () => {
+    const voices = speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      // Prioriza voz em pt-BR (Luciana / Felipe)
+      selectedVoice = voices.find(v => v.lang === "pt-BR") || voices[0];
+      voicesReady = true;
+      console.log("✅ Voz carregada:", selectedVoice.name);
+    } else {
+      // Caso não estejam disponíveis ainda, tenta de novo
+      setTimeout(loadVoices, 300);
+    }
+  };
+  loadVoices();
+
+  // Hack para ativar contexto de áudio
+  const utter = new SpeechSynthesisUtterance("");
+  speechSynthesis.speak(utter);
+}
+
+// Ativa no primeiro clique/touch do usuário
+window.addEventListener("click", initSpeech, { once: true });
+window.addEventListener("touchstart", initSpeech, { once: true });
+
+// === Função global para falar ===
+function speakPlayerNumber(playerId) {
+  if (!voicesReady) {
+    console.warn("⚠️ Voz ainda não inicializada, ignorando fala.");
+    return;
+  }
+  const number = playerId.replace("circle", "");
+  const utter = new SpeechSynthesisUtterance("Jogador " + number);
+  utter.lang = "pt-BR";
+  utter.rate = 1.0;
+  if (selectedVoice) utter.voice = selectedVoice;
+  speechSynthesis.speak(utter);
+}
+</script>
+
+
 </body>
 </html>
