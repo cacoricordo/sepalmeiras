@@ -567,21 +567,19 @@ function detectBallPossession(green, ball) {
 
   // Critério híbrido: distância + lado do campo
   if (minDistGreen < 50 || ballOnLeftSide) {
-    return "verde"; // Palmeiras em posse (ataque direita→esquerda)
+    return "verde"; // Palmeiras em posse (ataca da direita → esquerda)
   } else {
-    return "preto"; // Adversário em posse (ataque esquerda→direita)
+    return "preto"; // Adversário em posse (ataca da esquerda → direita)
   }
 }
 
+// === API global para uso no Vision, Analyze e do HUD ===
 function getCurrentPossession() {
   const green = getPalmeirasPositions();
   const ball  = getBall();
   return detectBallPossession(green, ball); // "verde" ou "preto"
 }
-  catch (err) {
-    console.error("❌ Erro ao enviar imagem para IA Vision:", err);
-  }
-}
+
 
   // === Botão da Análise IA ===
   const aiBtn = document.getElementById('ai-analise-btn');
