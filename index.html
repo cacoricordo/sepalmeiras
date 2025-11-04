@@ -664,6 +664,13 @@ function getCurrentPossession() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
+    // 🟢 aplicar a formação vinda do /ai/analyze
+    animateTeam("circle", data.green);
+    applyDynamicBlocks(
+        data.green,
+        data.phase?.toLowerCase() || "defesa",
+        data.opponentFormation
+    );
 
     // === Atualiza HUD Tático ===
     hudForm.textContent = `Adversário: ${data.opponentFormation || "?"} | Palmeiras: ${data.detectedFormation || "?"}`;
