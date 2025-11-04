@@ -1,21 +1,35 @@
-// server.js — AI Tática v12.1 (leitura geométrica FIFA real)
+// server.js — AI Tática v12.1.1 (Render Ready)
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
-import { createServer } from "http";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
+
 const app = express();
-const httpServer = createServer(app);
+
+// === Configuração de diretórios ===
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// === Middleware básico ===
 app.use(cors());
 app.use(bodyParser.json());
 
+// === Servir frontend (index.html + assets) ===
+app.use(express.static(__dirname));
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+// === Constantes de campo ===
 const FIELD_WIDTH = 600;
 const FIELD_HEIGHT = 300;
 
-// === Base de formações do Palmeiras ===
+// === Banco de formações base ===
 const FORMATIONS = {
   "4-4-2": [
     { id:13, zone:[70,80] }, { id:14, zone:[70,220] },
@@ -58,15 +72,15 @@ const FORMATIONS = {
   ]
 };
 
-// === Detector geométrico FIFA real (análise 2D) ===
+// === Detector geométrico FIFA 2D ===
 function detectOpponentFormationAdvanced(players) {
   if (!players || players.length < 8) return "4-4-2";
 
-  // 1️⃣ Ordena por posição vertical (Y)
+  // Ordena por Y
   const sorted = [...players].sort((a, b) => a.top - b.top);
-
-  // 2️⃣ Agrupa jogadores em linhas por diferença vertical ≤ 60px
   const lines = [];
+
+  // Agrupa por Y (≤ 60px de diferença)
   for (const p of sorted) {
     let line = lines.find(l => Math.abs(l.centerY - p.top) <= 60);
     if (line) {
@@ -77,14 +91,10 @@ function detectOpponentFormationAdvanced(players) {
     }
   }
 
-  // 3️⃣ Ordena linhas da defesa → ataque
   lines.sort((a, b) => a.centerY - b.centerY);
-
-  // 4️⃣ Conta jogadores por linha (ex: [4,3,3])
   const counts = lines.map(l => l.players.length);
   const signature = counts.join("-");
 
-  // 5️⃣ Interpreta padrões
   if (signature.startsWith("4-3-3")) return "4-3-3";
   if (signature.startsWith("4-4-2")) return "4-4-2";
   if (signature.startsWith("3-5-2")) return "3-5-2";
@@ -94,19 +104,15 @@ function detectOpponentFormationAdvanced(players) {
   if (signature.startsWith("4-5-1")) return "4-5-1";
   if (signature.startsWith("3-4-3")) return "3-4-3";
 
-  // fallback simples (por X)
   const FIELD_THIRD = FIELD_WIDTH / 3;
   const def = players.filter(p => p.left < FIELD_THIRD);
   const mid = players.filter(p => p.left >= FIELD_THIRD && p.left < FIELD_THIRD * 2);
   const att = players.filter(p => p.left >= FIELD_THIRD * 2);
   const shape = `${def.length}-${mid.length}-${att.length}`;
-  if (shape === "4-3-3") return "4-3-3";
-  if (shape === "4-4-2") return "4-4-2";
-  if (shape === "5-4-1") return "5-4-1";
-  return shape;
+  return shape === "4-3-3" || shape === "4-4-2" ? shape : "4-4-2";
 }
 
-// === Escolhe resposta tática do Palmeiras ===
+// === Define contra-formação ===
 function chooseCounterFormation(opponentFormation, possession) {
   if (possession === "verde") {
     switch (opponentFormation) {
@@ -127,7 +133,7 @@ function chooseCounterFormation(opponentFormation, possession) {
   }
 }
 
-// === Fase, bloco e compactação ===
+// === Fase, bloco, compactação ===
 function detectPhase(possession, opponentFormation) {
   if (possession === "verde") return { phase: "Ataque", bloco: "Alto", compactacao: "Larga" };
   if (["5-4-1", "4-5-1"].includes(opponentFormation)) return { phase: "Defesa", bloco: "Baixo", compactacao: "Curta" };
@@ -135,7 +141,7 @@ function detectPhase(possession, opponentFormation) {
   return { phase: "Defesa", bloco: "Baixo", compactacao: "Curta" };
 }
 
-// === Palmeiras (verde/red) joga da DIREITA → ESQUERDA ===
+// === Palmeiras joga da DIREITA → ESQUERDA ===
 function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
   const greenAI = [];
@@ -149,60 +155,37 @@ function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
 
   for (const pos of formation) {
     const jitter = Math.random() * 4 - 2;
-    let baseX;
-    if (phase === "ataque") baseX = FIELD_WIDTH - pos.zone[0] - offsetX;
-    else baseX = FIELD_WIDTH - pos.zone[0] + offsetX;
+    let baseX = phase === "ataque"
+      ? FIELD_WIDTH - pos.zone[0] - offsetX
+      : FIELD_WIDTH - pos.zone[0] + offsetX;
     baseX = Math.max(20, Math.min(FIELD_WIDTH - 20, baseX));
     greenAI.push({ id: pos.id, left: baseX, top: pos.zone[1] + jitter });
   }
 
-  // goleiro 23 fixo no gol direito
   greenAI.push({ id: 23, left: FIELD_WIDTH - 10, top: FIELD_HEIGHT / 2 });
   return { greenAI };
 }
 
-// === Memória tática (evita repetição de fala) ===
+// === Fala do Abel ===
 let lastFormation = "";
 let lastPhase = "";
-
-// === Fala do Abel (variações) ===
 function abelSpeech(opponentFormation, detectedFormation, phase, bloco, compactacao) {
-  const intro = [
-    "Repara comigo:",
-    "É claro o que está acontecendo:",
-    "A gente sabe como reagir:",
-    "Eles mudaram o jogo:",
-    "Olha a leitura:"
-  ];
-  const corpo = [
-    `Eles estão num ${opponentFormation}, e nós estamos num ${detectedFormation}.`,
-    `O ${opponentFormation} deles pede um ${detectedFormation} da nossa parte.`,
-    `Adaptamos pro ${detectedFormation} contra o ${opponentFormation}.`
-  ];
-  const contexto = [
-    `Fase ${phase.toLowerCase()}, bloco ${bloco.toLowerCase()}, compactação ${compactacao.toLowerCase()}.`,
-    `É fase de ${phase.toLowerCase()}, bloco ${bloco.toLowerCase()}.`,
-    `Mantemos a compactação ${compactacao.toLowerCase()} no bloco ${bloco.toLowerCase()}.`
-  ];
+  const intro = ["Repara comigo:", "É claro o que está acontecendo:", "Eles mudaram o jogo:", "A gente sabe como reagir:"];
+  const corpo = [`Eles estão num ${opponentFormation}, e nós estamos num ${detectedFormation}.`, `Adaptamos pro ${detectedFormation} contra o ${opponentFormation}.`];
+  const contexto = [`Fase ${phase.toLowerCase()}, bloco ${bloco.toLowerCase()}, compactação ${compactacao.toLowerCase()}.`];
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
   return `${pick(intro)} ${pick(corpo)} ${pick(contexto)}`;
 }
 
-// === Endpoint principal /ai/analyze ===
+// === Rota principal ===
 app.post("/ai/analyze", async (req, res) => {
   try {
     const { green = [], black = [], ball = {}, possession = "preto" } = req.body;
-
     const opponentFormation = detectOpponentFormationAdvanced(black);
     const detectedFormation = chooseCounterFormation(opponentFormation, possession);
-    const { greenAI } = buildGreenFromFormation(
-      detectedFormation,
-      ball,
-      possession === "verde" ? "ataque" : "defesa"
-    );
+    const { greenAI } = buildGreenFromFormation(detectedFormation, ball, possession === "verde" ? "ataque" : "defesa");
     const { phase, bloco, compactacao } = detectPhase(possession, opponentFormation);
 
-    // evita repetição contínua
     let coachComment = "";
     if (opponentFormation !== lastFormation || phase !== lastPhase) {
       coachComment = abelSpeech(opponentFormation, detectedFormation, phase, bloco, compactacao);
@@ -217,9 +200,7 @@ app.post("/ai/analyze", async (req, res) => {
   }
 });
 
-// === Inicialização ===
+// === Inicializa ===
 const PORT = process.env.PORT || 10000;
-httpServer.listen(PORT, () =>
-  console.log(`✅ AI TÁTICA v12.1 — Leitura FIFA 2D rodando na porta ${PORT}`)
-);
+app.listen(PORT, () => console.log(`✅ AI TÁTICA v12.1.1 rodando na porta ${PORT}`));
 
