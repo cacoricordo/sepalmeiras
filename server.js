@@ -222,35 +222,44 @@ app.post("/ai/vision-tactic", async (req, res) => {
       return res.status(500).json({ error: "OPENROUTER_KEY ausente no servidor" });
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
+    console.log("📩 Recebendo imagem do front...");
+    console.log("⚽ Posse:", possession);
+    console.log("🖼️ fieldImage (inicio):", fieldImage?.substring(0, 120)); // mostra só o começo
+
+const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${apiKey}`,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "moonshotai/kimi-vl-a3b-thinking:free",
+    messages: [
+      {
+        role: "system",
+        content: `Você é um analista tático de futebol.
+        Dado um frame de campo com 22 jogadores e a bola,
+        identifique a formação do time adversário e a do Palmeiras (verde/vermelho),
+        e descreva brevemente a fase tática (ataque, defesa ou transição).`
       },
-      body: JSON.stringify({
-        model: "moonshotai/kimi-vl-a3b-thinking:free", // ✅ modelo com visão
-        messages: [
-          {
-            role: "system",
-            content: `Você é um analista tático de futebol. 
-            Dado um frame de campo com 22 jogadores e a bola,
-            identifique a formação do time adversário e a do Palmeiras (verde/vermelho),
-            e descreva brevemente a fase tática (ataque, defesa ou transição).`
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: `A posse é do time ${possession}. Analise a imagem:` },
-              { type: "image", image_url: fieldImage }
-            ]
-          }
+      {
+        role: "user",
+        content: [
+          { type: "text", text: `A posse é do time ${possession}. Analise a imagem:` },
+          { type: "input_image", image_data: fieldImage } // 👈 use "input_image" e "image_data"
         ]
-      })
-    });
+      }
+    ]
+  })
+});
+
+
 
     const data = await response.json();
+    console.log("📦 Resposta bruta Vision:", JSON.stringify(data, null, 2));
     const visionReply = data?.choices?.[0]?.message?.content || "Não consegui analisar a tática visualmente.";
+    console.log("🧠 Interpretação final:", visionReply);
+
 
     res.json({ visionReply });
 
