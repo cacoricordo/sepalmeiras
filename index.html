@@ -1,468 +1,96 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <title>SE Palmeiras, Campo Tático</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://www.osinvictos.com.br/dashboard/sepalmeiras/">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="https://www.osinvictos.com.br/dashboard/sepalmeiras/img/sepalmeiras-previa.png">
-    <meta property="og:title" content="SE Palmeiras, Campo Tático">
-    <meta property="og:description" content="Campeão Invicto em 1960">
-    <meta property="og:image" content="https://www.osinvictos.com.br/dashboard/sepalmeiras/img/sepalmeiras-previa.png">
-    <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CT Virtual – Modo PRO (Vision + Tática + Chat)</title>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;background:#0b1220;color:#f3f6ff}
+    .wrap{display:grid;grid-template-columns: 720px 1fr; gap:16px; padding:16px}
+    #background-square{position:relative;width:600px;height:300px;background:#1b5e20;border:2px solid #fff;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+    /* HUD */
+    #tactical-hud{display:none;background:#0e1a33;border:1px solid #1f3b6b;border-radius:12px;padding:12px}
+    #tactical-hud h3{margin:0 0 8px 0;font-size:14px;opacity:.9}
+    #hud-formations,#hud-phase,#hud-block{font-size:13px;margin:2px 0}
+    /* Botões */
+    .bar{display:flex;gap:8px;margin:8px 0}
+    button{background:#0f5bd8;border:0;color:#fff;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    /* Círculos */
+    .circle{position:absolute;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;user-select:none;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+    .green{background:#12b886}
+    .black{background:#111}
+    #ball{position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+    /* Chat */
+    #chat{display:flex;flex-direction:column;height:300px;background:#0e1328;border:1px solid #1e2c55;border-radius:12px}
+    #chat-log{flex:1;overflow:auto;padding:12px;line-height:1.4}
+    .msg{margin:6px 0;font-size:13px}
+    .msg.me{color:#c4d4ff}
+    .msg.coach{color:#86f6c9}
+    .msg.sys{color:#9aa4b2;font-style:italic}
+    #chat-form{display:flex;border-top:1px solid #1e2c55}
+    #chat-input{flex:1;background:transparent;border:0;color:#fff;padding:10px}
+    #chat-send{border-left:1px solid #1e2c55}
+    /* Notificação */
+    #ai-notification{display:none;position:fixed;left:16px;bottom:16px;background:#0e1a33;border:1px solid #1f3b6b;border-radius:10px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+  </style>
+  <script src="/socket.io/socket.io.js"></script>
 </head>
-<body style="
-  background-image: url('img/estadium.jpg');
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-attachment: fixed;
-">
+<body>
+  <div class="wrap">
+    <div>
+      <div class="bar">
+        <button id="ai-analise-btn">Análise IA</button>
+        <button id="reset-btn" title="Recentrar jogadores">Reset</button>
+      </div>
+      <div id="background-square">
+        <!-- CÍRCULOS ADVERSÁRIO 1..11 -->
+        <div id="circle1" class="circle black" style="left:40px;top:140px">1</div>
+        <div id="circle2" class="circle black" style="left:80px;top:60px">2</div>
+        <div id="circle3" class="circle black" style="left:80px;top:220px">3</div>
+        <div id="circle4" class="circle black" style="left:120px;top:100px">4</div>
+        <div id="circle5" class="circle black" style="left:120px;top:180px">5</div>
+        <div id="circle6" class="circle black" style="left:170px;top:70px">6</div>
+        <div id="circle7" class="circle black" style="left:170px;top:230px">7</div>
+        <div id="circle8" class="circle black" style="left:210px;top:110px">8</div>
+        <div id="circle9" class="circle black" style="left:210px;top:190px">9</div>
+        <div id="circle10" class="circle black" style="left:260px;top:140px">10</div>
+        <div id="circle11" class="circle black" style="left:300px;top:140px">11</div>
+        <!-- CÍRCULOS PALMEIRAS 13..23 (12 reservado) -->
+        <div id="circle13" class="circle green" style="left:520px;top:60px">13</div>
+        <div id="circle14" class="circle green" style="left:520px;top:220px">14</div>
+        <div id="circle15" class="circle green" style="left:490px;top:110px">15</div>
+        <div id="circle16" class="circle green" style="left:490px;top:170px">16</div>
+        <div id="circle17" class="circle green" style="left:420px;top:80px">17</div>
+        <div id="circle18" class="circle green" style="left:420px;top:130px">18</div>
+        <div id="circle19" class="circle green" style="left:420px;top:170px">19</div>
+        <div id="circle20" class="circle green" style="left:420px;top:220px">20</div>
+        <div id="circle21" class="circle green" style="left:330px;top:120px">21</div>
+        <div id="circle22" class="circle green" style="left:330px;top:180px">22</div>
+        <div id="circle23" class="circle green" style="left:585px;top:150px">23</div>
+        <!-- BOLA -->
+        <div id="circle24" style="left:300px;top:150px" ></div>
+      </div>
+      <div id="tactical-hud">
+        <h3>HUD Tático</h3>
+        <div id="hud-formations">Adversário: ? | Palmeiras: ?</div>
+        <div id="hud-phase">Fase: ?</div>
+        <div id="hud-block">Bloco: ? | Compactação: ?</div>
+      </div>
+    </div>
 
-  <!-- ===== Campo Tático ===== -->
-    <div id="background-square" class="background-square"></div>
-    <div id="background-line"></div>
-    <div id="background-line2"></div>
-    <div id="background-line3"></div>
-    <div id="background-line4"></div>
-    <div id="background-line5"></div>
-    <div id="background-line6"></div>
-    <div id="background-line7"></div>
-    <div id="background-line8"></div>
-    <div id="background-line9"></div>
-    <div id="background-line10"></div>
-    <div id="background-line11"></div>
-    <div id="background-line12"></div>
-    <div id="background-line13"></div>
-    <div id="background-line14"></div>
-    <div id="background-line15"></div>
-    <div id="background-line16"></div>
-    <div id="background-line17"></div>
-  <div id="circulocentrar" class="circlecentral" style="background:transparent;left:237px;top:100px;border:2px solid #fff;"></div>
-  <div id="gol-square" class="gol-square"></div>
-  <div id="gol2-square" class="gol2-square"></div>
-
-  <!-- Jogadores e time adversário (IDs originais mantidos) -->
-  <div id="circle1" class="circle">1</div>
-  <div id="circle2" class="circle">2</div>
-  <div id="circle3" class="circle">3</div>
-  <div id="circle4" class="circle">4</div>
-  <div id="circle5" class="circle">5</div>
-  <div id="circle6" class="circle">6</div>
-  <div id="circle7" class="circle">7</div>
-  <div id="circle8" class="circle">8</div>
-  <div id="circle9" class="circle">9</div>
-  <div id="circle10" class="circle">10</div>
-  <div id="circle11" class="circle">11</div>
-  <div id="circle12" class="circle" style="background:#FFFFFF;"></div>
-  <div id="circle13" class="circle" style="background:#33FFCC;">2</div>
-  <div id="circle14" class="circle" style="background:#33FFCC;">6</div>
-  <div id="circle15" class="circle" style="background:#33FFCC;">3</div>
-  <div id="circle16" class="circle" style="background:#33FFCC;">4</div>
-  <div id="circle17" class="circle" style="background:#33FFCC;">8</div>
-  <div id="circle18" class="circle" style="background:#33FFCC;">5</div>
-  <div id="circle19" class="circle" style="background:#33FFCC;">7</div>
-  <div id="circle20" class="circle" style="background:#33FFCC;">10</div>
-  <div id="circle21" class="circle" style="background:#33FFCC;">11</div>
-  <div id="circle22" class="circle" style="background:#33FFCC;">9</div>
-  <div id="circle23" class="circle">01</div>
-  <div id="circle24" class="circle" style="left:280px;top:140px;background:#fff;"></div>
-
-  <canvas id="trace-canvas" width="600" height="300"
-   style="position:absolute;left:20px;top:20px;z-index:10;border-radius:8px;background:transparent;"></canvas>
-
-  <div id="ai-notification" style="display:none;position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:#33aaff;color:#fff;padding:18px 32px;border-radius:8px;z-index:10001;font-size:1.1em;box-shadow:0 2px 10px rgba(0,0,0,0.18);"></div>
-
-  <!-- Botões -->
-  <div id="fullscreen-overlay" style="position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);color:#fff;display:flex;align-items:center;justify-content:center;z-index:9999;font-size:2em;cursor:pointer;z-index:10055">
-    Toque para entrar na Mesa Tática
+    <div>
+      <div id="chat">
+        <div id="chat-log"></div>
+        <form id="chat-form" autocomplete="off">
+          <input id="chat-input" placeholder="Fale com o Abel…" />
+          <button id="chat-send" type="submit">Enviar</button>
+        </form>
+      </div>
+    </div>
   </div>
 
-  <button id="exit-fullscreen-btn" style="position:fixed;top:330px;left:20px;z-index:10000;">Sair (x)</button>
-  <button id="ai-analise-btn" style="position:fixed;top:330px;left:120px;z-index:10000;">Análise IA</button>
-  <button id="pen-path-btn" style="position:fixed;top:330px;left:302px;z-index:10000;">✎ Desenho Tático</button>
-
-<script>
-// ================= STATE =================
-const tacticalState = {
-  possession: "preto",
-  opponentFormation: null,
-  palFormation: "4-3-3",
-  phase: "defesa",
-  block: "baixo",
-  compactacao: "curta"
-};
-
-/* ===== CORE: movimento, socket, física e AI analyze ===== */
-const socket = io("https://sepalmeiras.onrender.com", {
-  transports: ["websocket", "polling"],
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 2000,
-});
-window.socket = socket;
-
-// === Utilitário: throttle ===
-function throttle(fn, delay) {
-  let last = 0;
-  return (...args) => {
-    const now = Date.now();
-    if (now - last >= delay) {
-      last = now;
-      fn(...args);
-    }
-  };
-}
-
-const circles = {};
-const dragState = {};
-let activeId = null;
-
-// === Inicializa círculos (jogadores) ===
-for (let i = 1; i <= 24; i++) {
-  const el = document.getElementById("circle" + i);
-  circles[i] = el;
-  dragState[i] = { dragging: false, offsetX: 0, offsetY: 0 };
-  if (!el) continue;
-  el.style.position = el.style.position || "absolute";
-  el.style.zIndex = "20";
-
-  el.addEventListener("mousedown", (e) => {
-    dragState[i].dragging = true;
-    dragState[i].offsetX = e.offsetX;
-    dragState[i].offsetY = e.offsetY;
-    activeId = i;
-  });
-
-  el.addEventListener("touchstart", (e) => {
-    const touch = e.touches[0];
-    const rect = el.getBoundingClientRect();
-    dragState[i].dragging = true;
-    dragState[i].offsetX = touch.clientX - rect.left;
-    dragState[i].offsetY = touch.clientY - rect.top;
-    activeId = i;
-    e.preventDefault();
-  }, { passive: false });
-}
-
-// === Física da bola ===
-const emitBallMove = throttle((id, left, top) => {
-  socket.emit("ball-move", { id, left, top });
-}, 50);
-
-const ball = document.getElementById("circle24");
-
-// === Detecção de colisão ===
-function checkCollision(playerEl, ballEl) {
-  const pr = playerEl.getBoundingClientRect();
-  const br = ballEl.getBoundingClientRect();
-  const dx = pr.left - br.left;
-  const dy = pr.top - br.top;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  return distance < 30;
-}
-
-/* ===== MOVIMENTO, COLISÃO E FÍSICA AVANÇADA (FIFA MODE) ===== */
-
-let lastSpoken = {}; // cooldown das falas
-let ballVelocity = { x: 0, y: 0 }; // vetor de velocidade da bola
-let ballMoving = false;
-
-// === Fala o número do jogador ===
-function speakPlayerNumber(playerId) {
-  const number = playerId.replace("circle", "");
-  const utter = new SpeechSynthesisUtterance("Jogador " + number);
-  utter.lang = "pt-BR";
-  utter.rate = 1.0;
-  const voices = speechSynthesis.getVoices();
-  const voice = voices.find(v => v.lang === "pt-BR" && v.name.includes("Luciana"));
-  if (voice) utter.voice = voice;
-  window.speechSynthesis.speak(utter);
-}
-window.speechSynthesis.onvoiceschanged = () => {};
-
-// === Função de movimento e impacto ===
-function moveElement(id, x, y) {
-  const el = circles[id];
-  if (!el) return;
-
-  // 🟥 impede o juiz (circle12) de movimentar a bola ou ter impacto
-  if (id === 12) return;
-
-  // 🟢 permite o movimento da bola localmente
-  const oldX = parseFloat(el.style.left || 0);
-  const oldY = parseFloat(el.style.top || 0);
-
-  el.style.left = x + "px";
-  el.style.top = y + "px";
-
-  // Se for a bola, apenas emite o movimento e sai (sem colisão)
-  if (id === 24) {
-    emitBallMove("circle24", x, y);
-    return;
-  }
-
-  // detecta colisão jogador-bola
-  if (checkCollision(el, ball)) {
-    const now = Date.now();
-
-    // fala uma vez por segundo
-    if (!lastSpoken[id] || now - lastSpoken[id] > 1000) {
-      speakPlayerNumber("circle" + id);
-      lastSpoken[id] = now;
-    }
-
-    // === Cálculo do impacto proporcional à velocidade ===
-    const vx = (x - oldX) * 0.6; // força (ajuste: 0.6–1.0)
-    const vy = (y - oldY) * 0.6;
-    ballVelocity.x = vx;
-    ballVelocity.y = vy;
-    ballMoving = true;
-  }
-}
-
-// === Loop de física (inércia e atrito) ===
-function updateBallPhysics() {
-  if (!ballMoving) return;
-
-  const ball = document.getElementById("circle24");
-  if (!ball) return;
-
-  let bx = parseFloat(ball.style.left || 0);
-  let by = parseFloat(ball.style.top || 0);
-
-  // aplica velocidade
-  bx += ballVelocity.x;
-  by += ballVelocity.y;
-
-  // atrito (reduz a velocidade gradualmente)
-  ballVelocity.x *= 0.94;
-  ballVelocity.y *= 0.94;
-
-  // se a velocidade for muito baixa, para a bola
-  if (Math.abs(ballVelocity.x) < 0.05 && Math.abs(ballVelocity.y) < 0.05) {
-    ballMoving = false;
-  }
-
-  // mantém dentro do campo (limites de tela)
-  const field = document.getElementById("field") || document.body;
-  const maxX = (field.clientWidth || window.innerWidth) - 40;
-  const maxY = (field.clientHeight || window.innerHeight) - 40;
-  bx = Math.max(0, Math.min(bx, maxX));
-  by = Math.max(0, Math.min(by, maxY));
-
-  // aplica posição
-  ball.style.left = bx + "px";
-  ball.style.top = by + "px";
-
-  // envia posição ao servidor
-  emitBallMove("circle24", bx, by);
-}
-
-// === Atualiza a física a cada frame ===
-setInterval(updateBallPhysics, 30);
-
-// === Movimento dos jogadores (desktop + touch) ===
-const emitPlayerMove = throttle((id, left, top) => {
-  socket.emit("player-move", { id, left, top });
-}, 50);
-
-document.addEventListener("mousemove", (e) => {
-  if (!activeId) return;
-  const i = activeId;
-  const x = e.clientX - dragState[i].offsetX;
-  const y = e.clientY - dragState[i].offsetY;
-  moveElement(i, x, y);
-  emitPlayerMove("circle" + i, x, y);
-});
-
-document.addEventListener("touchmove", (e) => {
-  if (!activeId) return;
-  const i = activeId;
-  const touch = e.touches[0];
-  const x = touch.clientX - dragState[i].offsetX;
-  const y = touch.clientY - dragState[i].offsetY;
-  moveElement(i, x, y);
-  emitPlayerMove("circle" + i, x, y);
-  e.preventDefault();
-}, { passive: false });
-
-function endDrag() {
-  if (activeId) {
-    dragState[activeId].dragging = false;
-    activeId = null;
-  }
-}
-document.addEventListener("mouseup", endDrag);
-document.addEventListener("touchend", endDrag);
-
-// === Recebe posições dos jogadores de outros clientes ===
-socket.on("update_circle", (data) => {
-  const el = document.getElementById("circle" + data.id);
-  if (el) {
-    el.style.left = data.left + "px";
-    el.style.top = data.top + "px";
-  }
-});
-
-const canvas = document.getElementById("trace-canvas");
-const ctx = canvas?.getContext("2d", { willReadFrequently: true });
-
-
- // === RECEBE DESENHOS DE OUTROS USUÁRIOS ===
-  if (window.socket) {
-    socket.on("path_draw", (data) => {
-      if (!data || !Array.isArray(data.path)) return;
-      const rect = canvas.getBoundingClientRect();
-
-      // Reconstrói coordenadas reais conforme o tamanho do canvas local
-      const scaled = data.path.map(([nx, ny]) => [nx * rect.width, ny * rect.height]);
-
-      // Cor por camada tática
-      const color = data.layer === "defesa" 
-        ? "rgba(51,153,255,0.9)"
-        : data.layer === "bolaparada"
-        ? "rgba(255,215,0,0.9)"
-        : "rgba(255,51,51,0.9)"; // ataque padrão
-
-      // Desenha suavizado e aplica fade local
-      ctx.beginPath();
-      ctx.moveTo(scaled[0][0], scaled[0][1]);
-      for (let i = 1; i < scaled.length - 1; i++) {
-        const xc = (scaled[i][0] + scaled[i + 1][0]) / 2;
-        const yc = (scaled[i][1] + scaled[i + 1][1]) / 2;
-        ctx.quadraticCurveTo(scaled[i][0], scaled[i][1], xc, yc);
-      }
-      ctx.lineTo(scaled[scaled.length - 1][0], scaled[scaled.length - 1][1]);
-      ctx.strokeStyle = color;
-      ctx.shadowColor = color.replace("0.9", "0.3");
-      ctx.shadowBlur = 6;
-      ctx.lineWidth = 4;
-      ctx.stroke();
-      ctx.closePath();
-
-      // 🔥 fade automático em 5s (sincronizado visualmente)
-      setTimeout(() => {
-        ctx.save();
-        ctx.globalCompositeOperation = "destination-out";
-        ctx.globalAlpha = 0.15;
-        ctx.beginPath();
-        ctx.moveTo(scaled[0][0], scaled[0][1]);
-        for (let i = 1; i < scaled.length - 1; i++) {
-          const xc = (scaled[i][0] + scaled[i + 1][0]) / 2;
-          const yc = (scaled[i][1] + scaled[i + 1][1]) / 2;
-          ctx.quadraticCurveTo(scaled[i][0], scaled[i][1], xc, yc);
-        }
-        ctx.lineTo(scaled[scaled.length - 1][0], scaled[scaled.length - 1][1]);
-        ctx.stroke();
-        ctx.closePath();
-        ctx.restore();
-      }, 5000);
-    });
-  }
-
-  function animateTeam(prefix, positions) {
-    for (const p of positions) {
-      if (p.id === 23) continue;
-      const el = document.getElementById(prefix + p.id);
-      if (el) {
-        el.style.transition = 'left 1s ease, top 1s ease';
-        el.style.left = p.left + 'px';
-        el.style.top = p.top + 'px';
-      }
-    }
-  }
-
-  // HUD
-  document.getElementById("hud-formations").textContent =
-    `Adversário: ${tacticalState.opponentFormation} | Palmeiras: ${tacticalState.palFormation}`;
-
-  document.getElementById("hud-phase").textContent =
-    `Fase: ${tacticalState.phase?.toUpperCase()}`;
-
-  document.getElementById("hud-block").textContent =
-    `Bloco: ${tacticalState.block} | Compactação: ${tacticalState.compactacao}`;
-
-  document.getElementById("tactical-hud").style.display = "block";
-}
-
-
-// === 🟢 BLOCO TÁTICO DINÂMICO (MOVE O TIME TODO) ===
-function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
-  let blockOffsetX = 0;
-  switch ((phase || "").toLowerCase()) {
-    case "ataque":    blockOffsetX = -80; break;
-    case "defesa":    blockOffsetX =  80; break;
-    case "transicao": blockOffsetX = -40; break;
-  }
-  if (opponentFormation === "4-4-2" || opponentFormation === "5-4-1") blockOffsetX = -100;
-  else if (opponentFormation === "4-3-3" || opponentFormation === "4-2-3-1") blockOffsetX = 100;
-
-  console.log(`🟢 Bloco aplicado: fase=${phase}, offset=${blockOffsetX}px`);
-
-  greenPlayers.forEach(p => {
-    const el = document.getElementById(`circle${p.id}`);
-    if (!el) return;
-    const newX = p.left + blockOffsetX;
-    el.style.left = `${Math.max(20, Math.min(580, newX))}px`;
-    el.style.top  = `${p.top}px`;
-    p.left = Math.max(20, Math.min(580, newX));
-  });
-}
-
-// === Função: envia imagem do campo para análise visual (IA Vision) ===
-async function sendVisionTactic() {
-  try {
-    const canvas = document.querySelector("canvas");
-    if (!canvas) {
-      console.warn("❌ Canvas não encontrado.");
-      return;
-    }
-
-    const fieldImage = makeVisionSnapshot();
-    const possession = typeof getCurrentPossession === "function"
-      ? getCurrentPossession()
-      : "verde";
-
-    const ball = typeof getBall === "function" ? getBall() : null;
-
-    console.log("📸 Enviando imagem do campo para análise visual...");
-    console.log("🖼️ fieldImage:", fieldImage.substring(0, 100));
-
-    const res = await fetch("/ai/vision-tactic", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fieldImage, possession, ball })
-    });
-
-    const data = await res.json();
-    console.log("📊 Visão Tática (backend):", data);
-
-    // ✅ Move o Palmeiras pela visão da IA
-    if (Array.isArray(data.green) && data.green.length > 0) {
-      animateTeam("circle", data.green);
-
-      applyDynamicBlocks(
-        data.green,
-        data.phase?.toLowerCase() || "defesa",
-        data.opponentFormation || "4-4-2"
-      );
-    }
-
-    // ✅ Abre popup do treinador
-    if (data.coachComment && typeof showAbelCommentPopup === "function") {
-      showAbelCommentPopup(data.coachComment);
-    }
-    
-    return data;
-  } catch (err) {
-    console.error("❌ Erro ao enviar imagem para IA Vision:", err);
-  }
-}
-</script> 
+  <div id="ai-notification"></div>
 
 <script>
 // ======================
@@ -478,214 +106,107 @@ const tacticalState = {
   green: []
 };
 
-// === Funções auxiliares ===
-function makeVisionSnapshot() {
-  const cw = 600, ch = 300;         // mesmo FIELD_WIDTH/HEIGHT do servidor
-  const off = document.createElement("canvas");
-  off.width = cw; off.height = ch;
-  const g = off.getContext("2d");
+// ======================
+// SOCKET (Chat & eventos)
+// ======================
+const socket = io(window.location.origin, {transports:["websocket","polling"]});
+window.socket = socket;
 
-  // === Campo básico ===
-  g.fillStyle = "#2e7d32"; g.fillRect(0,0,cw,ch);         // gramado
-  g.strokeStyle = "#ffffff"; g.lineWidth = 2;
-  g.strokeRect(1,1,cw-2,ch-2);                             // linhas externas
-  g.beginPath(); g.moveTo(cw/2,0); g.lineTo(cw/2,ch); g.stroke(); // linha do meio
-  g.beginPath(); g.arc(cw/2, ch/2, 46, 0, Math.PI*2); g.stroke(); // círculo central
+socket.on("connect", ()=> logMsg(`🔌 Conectado (${socket.id})`, "sys"));
+socket.on("chat-message", (m)=> logMsg(`👤 ${m}`, "me"));
+socket.on("coach-message", (m)=> logMsg(`🎙️ Abel: ${m}`, "coach"));
 
-  // === Áreas (simplificadas) ===
-  g.strokeRect(0, 75, 60, 150);                            // grande esquerda
-  g.strokeRect(cw-60, 75, 60, 150);                        // grande direita
-  g.strokeRect(0, 100, 20, 100);                           // pequena esquerda
-  g.strokeRect(cw-20, 100, 20, 100);                       // pequena direita
+function logMsg(txt, cls="sys"){ const box=document.getElementById("chat-log"); const d=document.createElement("div"); d.className=`msg ${cls}`; d.textContent=txt; box.appendChild(d); box.scrollTop=box.scrollHeight; }
 
-  // === Coleta posições atuais ===
-  const green = getPalmeirasPositions();
-  const black = getOpponentPositions();
-  const ball  = getBall();
+// Envio do chat
+const chatForm = document.getElementById("chat-form");
+const chatInput = document.getElementById("chat-input");
+chatForm.addEventListener("submit", (e)=>{ e.preventDefault(); const t=chatInput.value.trim(); if(!t) return; socket.emit("chat-message", t); logMsg(`Você: ${t}`, "me"); chatInput.value="";});
 
-  // === Desenha ADVERSÁRIO (preto) ===
-  g.fillStyle = "#111111";
-  for (const p of black) {
-    g.beginPath(); g.arc(p.left - 20, p.top - 20, 13, 0, Math.PI*2); g.fill();
-  }
+// ======================
+// Funções auxiliares essenciais
+// ======================
+function $(id){ return document.getElementById(id); }
 
-  // === Desenha PALMEIRAS (verde claro) ===
-  g.fillStyle = "#33FFCC";
-  for (const p of green) {
-    g.beginPath(); g.arc(p.left - 20, p.top - 20, 13, 0, Math.PI*2); g.fill();
-  }
+function animateTeam(prefix, positions, done){
+  positions.forEach(p=>{
+    const el = $(prefix+p.id);
+    if(!el) return;
+    el.style.transition = "left .45s cubic-bezier(.25,.8,.25,1), top .45s cubic-bezier(.25,.8,.25,1)";
+    el.style.left = p.left+"px";
+    el.style.top  = p.top+"px";
+  });
+  if(typeof done==="function") setTimeout(done, 460);
+}
 
-  // === Desenha BOLA ===
-  g.fillStyle = "#ffffff";
-  g.beginPath(); g.arc(ball.left - 20, ball.top - 20, 6, 0, Math.PI*2); g.fill();
+function applyDynamicBlocks(greenPositions, phase="defesa", opponentFormation="?"){
+  // Placeholder – mantém compatibilidade visual
+  const hudPhase = $("hud-phase");
+  const hudBlock = $("hud-block");
+  if(hudPhase) hudPhase.innerText = `Fase: ${phase}`;
+  if(hudBlock) hudBlock.innerText = `Bloco: ${tacticalState.block} | Compactação: ${tacticalState.compactacao}`;
+}
 
+// === Campo/bola/jogadores helpers ===
+function getOpponentPositions(){ const arr=[]; for(let i=1;i<=11;i++){ const el=$("circle"+i); if(el){ arr.push({id:i,left:parseInt(el.style.left||el.offsetLeft),top:parseInt(el.style.top||el.offsetTop)});} } return arr; }
+function getPalmeirasPositions(){ const arr=[]; for(let i=13;i<=23;i++){ const el=$("circle"+i); if(el){ arr.push({id:i,left:parseInt(el.style.left||el.offsetLeft),top:parseInt(el.style.top||el.offsetTop)});} } return arr; }
+function getBall(){ const el=$("circle24"); return {left:parseInt(el.style.left||el.offsetLeft), top:parseInt(el.style.top||el.offsetTop)}; }
+
+function makeVisionSnapshot(){
+  const cw=600,ch=300; const off=document.createElement("canvas"); off.width=cw; off.height=ch; const g=off.getContext("2d");
+  g.fillStyle="#2e7d32"; g.fillRect(0,0,cw,ch);
+  g.strokeStyle="#ffffff"; g.lineWidth=2; g.strokeRect(1,1,cw-2,ch-2); g.beginPath(); g.moveTo(cw/2,0); g.lineTo(cw/2,ch); g.stroke(); g.beginPath(); g.arc(cw/2,ch/2,46,0,Math.PI*2); g.stroke();
+  g.strokeRect(0,75,60,150); g.strokeRect(cw-60,75,60,150); g.strokeRect(0,100,20,100); g.strokeRect(cw-20,100,20,100);
+  const green=getPalmeirasPositions(), black=getOpponentPositions(), ball=getBall();
+  g.fillStyle="#111"; black.forEach(p=>{g.beginPath(); g.arc(p.left-20,p.top-20,13,0,Math.PI*2); g.fill();});
+  g.fillStyle="#12b886"; green.forEach(p=>{g.beginPath(); g.arc(p.left-20,p.top-20,13,0,Math.PI*2); g.fill();});
+  g.fillStyle="#fff"; g.beginPath(); g.arc(ball.left-20,ball.top-20,6,0,Math.PI*2); g.fill();
   return off.toDataURL("image/png");
 }
 
-function getOpponentPositions() {
-  const arr = [];
+function detectBallPossession(green, black, ball){
+  const field=$("background-square").getBoundingClientRect();
+  const bx=(ball.left-field.left), cx=field.width/2;
+  const dG=Math.min(...green.map(p=>Math.hypot(p.left-ball.left,p.top-ball.top)));
+  const dB=Math.min(...black.map(p=>Math.hypot(p.left-ball.left,p.top-ball.top)));
+  const sideBias = bx < cx ? -8 : +8; // favorece verde se bola está à esquerda
+  return (dG+sideBias) < dB ? "verde" : "preto";
+}
+function getCurrentPossession(){ return detectBallPossession(getPalmeirasPositions(), getOpponentPositions(), getBall()); }
 
-  for (let i = 1; i <= 11; i++) {
-    const el = document.getElementById(`circle${i}`);
-    if (el) {
-      arr.push({
-        id: i,
-        left: parseInt(el.style.left || el.offsetLeft),
-        top: parseInt(el.style.top || el.offsetTop)
-      });
-    }
-  }
-
-  return arr;
+// ======================
+// MODO PRO: Render do estado
+// ======================
+function renderTacticState(){
+  if(!tacticalState.green || !tacticalState.green.length) return;
+  animateTeam("circle", tacticalState.green, ()=>{
+    applyDynamicBlocks(
+      tacticalState.green,
+      (tacticalState.phase||"defesa").toLowerCase(),
+      tacticalState.opponentFormation||"?"
+    );
+  });
+  $("tactical-hud").style.display = "block";
+  $("hud-formations").innerText = `Adversário: ${tacticalState.opponentFormation} | Palmeiras: ${tacticalState.palFormation}`;
+  $("hud-phase").innerText = `Fase: ${tacticalState.phase}`;
+  $("hud-block").innerText = `Bloco: ${tacticalState.block} | Compactação: ${tacticalState.compactacao}`;
 }
 
-function getPalmeirasPositions() {
-  const arr = [];
+// ======================
+// Botão Manual (opcional)
+// ======================
+const aiBtn = $("ai-analise-btn");
+aiBtn.addEventListener("click", updateTacticalState);
+$("reset-btn").addEventListener("click", ()=>{ location.reload(); });
 
-  for (let i = 13; i <= 23; i++) {
-    const el = document.getElementById(`circle${i}`);
-    if (el) {
-      arr.push({
-        id: i,
-        left: parseInt(el.style.left || el.offsetLeft),
-        top: parseInt(el.style.top || el.offsetTop)
-      });
-    }
-  }
-
-  return arr;
-}
-
-  function getPositions(prefix) {
-    const arr = [];
-    for (let i = 2; i <= 11; i++) {
-      const el = document.getElementById(prefix + i);
-      if (el) {
-        arr.push({
-          id: i,
-          left: parseInt(el.style.left || el.offsetLeft),
-          top: parseInt(el.style.top || el.offsetTop)
-        });
-      }
-    }
-    return arr;
-  }
-
-  function getBall() {
-    const el = document.getElementById('circle24');
-    return {
-      left: parseInt(el.style.left || el.offsetLeft),
-      top: parseInt(el.style.top || el.offsetTop)
-    };
-  }
-
-  function notify(msg, duration = 5000) {
-    const n = document.getElementById('ai-notification');
-    n.textContent = msg;
-    n.style.display = 'block';
-    clearTimeout(n.timer);
-    n.timer = setTimeout(() => (n.style.display = 'none'), duration);
-  }
-
-  // === Pop-up do Abel ===
-  function showAbelCommentPopup(commentText) {
-    const old = document.getElementById("abel-comment-popup");
-    if (old) old.remove();
-
-    const popup = document.createElement("div");
-    popup.id = "abel-comment-popup";
-    popup.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <strong style="font-size:11px;">🎙️ Abel Ferreira</strong>
-        <button id="close-abel-popup"
-          style="background:transparent;border:none;color:#fff;font-size:14px;font-weight:bold;cursor:pointer;margin-left:8px;line-height:1;">×</button>
-      </div>
-      <div style="font-size:11px;line-height:1.4;text-align:justify;color:#fff;">${commentText}</div>
-    `;
-
-    Object.assign(popup.style, {
-      position: "fixed",
-      top: "15px",
-      right: "15px",
-      background: "rgba(0,102,204,0.95)",
-      border: "1px solid rgba(255,255,255,0.2)",
-      borderRadius: "10px",
-      boxShadow: "0 0 10px rgba(0,0,0,0.4)",
-      padding: "14px 18px",
-      color: "#fff",
-      fontFamily: "'Segoe UI', sans-serif",
-      zIndex: "10003",
-      width: "240px",
-      maxWidth: "90vw",
-      opacity: "0",
-      transition: "opacity 0.6s ease"
-    });
-
-    document.body.appendChild(popup);
-    requestAnimationFrame(() => popup.style.opacity = "1");
-
-    document.getElementById("close-abel-popup").addEventListener("click", () => {
-      popup.style.opacity = "0";
-      setTimeout(() => popup.remove(), 500);
-    });
-  }
-
-// === Detecta posse de bola considerando lado do campo ===
-// Palmeiras defende à DIREITA e ataca à ESQUERDA
-function detectBallPossession(green, black, ball) {
-  const field = document.getElementById('background-square');
-  const rect = field.getBoundingClientRect();
-
-  // Normaliza coordenadas para [0..FIELD_WIDTH]
-  const bx = (ball.left - rect.left);
-  const cx = rect.width / 2;
-
-  // Distâncias mínimas
-  const dGreen = Math.min(...green.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
-  const dBlack = Math.min(...black.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
-
-  // Peso leve pelo lado do campo (Palmeiras ataca da direita->esquerda)
-  const sideBias = bx < cx ? -8 : +8; // negativo favorece "verde" à esquerda
-
-  return (dGreen + sideBias) < dBlack ? "verde" : "preto";
-}
-
-// E atualize getCurrentPossession para usar também o "black"
-function getCurrentPossession() {
-  const green = getPalmeirasPositions();
-  const black = getOpponentPositions();
-  const ball  = getBall();
-  return detectBallPossession(green, black, ball);
-}
-
-
-    // === Botão da Análise IA ===
-    const aiBtn = document.getElementById('ai-analise-btn');
-    aiBtn.addEventListener("click", updateTacticalState);
-
-    // ======================
-    // MODO PRO - Função ÚNICA
-    // Vision + Analyze + Render
-    // ======================
-async function updateTacticalState() {
-  try {
-    aiBtn.disabled = true;
-    aiBtn.textContent = "⌛ IA Calculando...";
-
-    const payload = {
-      fieldImage: makeVisionSnapshot(),
-      green: getPalmeirasPositions(),
-      black: getOpponentPositions(),
-      ball: getBall(),
-      possession: getCurrentPossession()
-    };
-
-    const res = await fetch("/ai/tactical-auto", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
+// ======================
+// UPDATE TÁTICO (1 request)
+// ======================
+async function updateTacticalState(){
+  try{
+    aiBtn.disabled=true; aiBtn.textContent="⌛ IA Calculando...";
+    const payload={ fieldImage:makeVisionSnapshot(), green:getPalmeirasPositions(), black:getOpponentPositions(), ball:getBall(), possession:getCurrentPossession() };
+    const res = await fetch("/ai/tactical-auto",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
     const data = await res.json();
 
     tacticalState.possession        = data.possession;
@@ -697,567 +218,42 @@ async function updateTacticalState() {
     tacticalState.green             = data.green;
 
     renderTacticState();
-
-    if (data.coachComment) showAbelCommentPopup(data.coachComment);
-
-  } catch (err) {
-    console.error("Erro MODO LIGHT:", err);
-  } finally {
-    aiBtn.disabled = false;
-    aiBtn.textContent = "Análise IA";
+    if(data.coachComment) logMsg(`Abel: ${data.coachComment}`, "coach");
+  }catch(e){
+    console.error(e); logMsg("❌ Erro na IA tática","sys");
+  }finally{
+    aiBtn.disabled=false; aiBtn.textContent="Análise IA";
   }
 }
 
 // ======================
 // IA AUTOMÁTICA (Lightning Mode)
-// Apenas 1 requisição ao backend
 // ======================
-
-let lastPossession = null;
-let autoRunning = false;
-
-</script>
-<!-- ====================== -->
-<!-- IA AUTOMÁTICA (MODO PRO AUTO) -->
-<!-- ====================== -->
-<script>
-// ======================
-// Render do estado tático (MODO PRO)
-// ======================
-function renderTacticState() {
-  if (!tacticalState.green || tacticalState.green.length === 0) return;
-
-  animateTeam("circle", tacticalState.green, () => {
-    applyDynamicBlocks(
-      tacticalState.green,
-      tacticalState.phase?.toLowerCase() || "defesa",
-      tacticalState.opponentFormation || "?"
-    );
-  });
-
-  const hudForm = document.getElementById("hud-formations");
-  const hudPhase = document.getElementById("hud-phase");
-  const hudBlock = document.getElementById("hud-block");
-  const hudBox = document.getElementById("tactical-hud");
-
-  hudForm.innerText  = `Adversário: ${tacticalState.opponentFormation} | Palmeiras: ${tacticalState.palFormation}`;
-  hudPhase.innerText = `Fase: ${tacticalState.phase}`;
-  hudBlock.innerText = `Bloco: ${tacticalState.block} | Compactação: ${tacticalState.compactacao}`;
-  hudBox.style.display = "block";
-  hudBox.style.opacity = "1";
+let lastPossession=null; let autoRunning=false;
+async function autoAnalyzeLoop(){
+  if(autoRunning) return; autoRunning=true;
+  try{
+    const payload={ fieldImage:makeVisionSnapshot(), green:getPalmeirasPositions(), black:getOpponentPositions(), ball:getBall(), possession:getCurrentPossession() };
+    const res = await fetch("/ai/tactical-auto",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
+    const data = await res.json();
+    const changed = data.possession!==lastPossession || data.detectedFormation!==tacticalState.palFormation;
+    if(changed){
+      tacticalState.possession        = data.possession;
+      tacticalState.opponentFormation = data.opponentFormation;
+      tacticalState.palFormation      = data.detectedFormation;
+      tacticalState.phase             = data.phase;
+      tacticalState.block             = data.bloco;
+      tacticalState.compactacao       = data.compactacao;
+      tacticalState.green             = data.green;
+      renderTacticState();
+      if(data.coachComment) logMsg(`Abel: ${data.coachComment}`, "coach");
+    }
+    lastPossession=data.possession;
+  }catch(e){ console.error(e); }
+  finally{ autoRunning=false; }
 }
-
-// ======================
-// IA AUTOMÁTICA (somente 1 request ao backend)
-// ======================
-let lastPossession = null;
-let autoRunning = false;
-
-async function autoAnalyzeLoop() {
-  if (autoRunning) return;
-  autoRunning = true;
-
-  const possession = getCurrentPossession();  // "verde" ou "preto"
-
-  const payload = {
-    fieldImage: makeVisionSnapshot(),
-    green: getPalmeirasPositions(),
-    black: getOpponentPositions(),
-    ball: getBall(),
-    possession
-  };
-
-  const res = await fetch("/ai/tactical-auto", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-
-  const data = await res.json();
-
-  // só dispara render se mudou mesmo
-  if (data.possession !== lastPossession || data.detectedFormation !== tacticalState.palFormation) {
-
-    tacticalState.possession        = data.possession;
-    tacticalState.opponentFormation = data.opponentFormation;
-    tacticalState.palFormation      = data.detectedFormation;
-    tacticalState.phase             = data.phase;
-    tacticalState.block             = data.bloco;
-    tacticalState.compactacao       = data.compactacao;
-    tacticalState.green             = data.green;
-
-    renderTacticState();
-
-    if (data.coachComment) showAbelCommentPopup(data.coachComment);
-  }
-
-  lastPossession = data.possession;
-  autoRunning = false;
-}
-
 setInterval(autoAnalyzeLoop, 650);
-
 </script>
-
-<script>
-/* === Controle de fullscreen e overlay === */
-const overlay = document.getElementById("fullscreen-overlay");
-const exitBtn = document.getElementById("exit-fullscreen-btn");
-
-function enterFullscreen() {
-  const field = document.documentElement; // página toda
-  if (field.requestFullscreen) field.requestFullscreen();
-  else if (field.webkitRequestFullscreen) field.webkitRequestFullscreen();
-  else if (field.msRequestFullscreen) field.msRequestFullscreen();
-  overlay.style.display = "none"; // remove bloqueio
-}
-
-function exitFullscreen() {
-  if (document.exitFullscreen) document.exitFullscreen();
-  else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-  else if (document.msExitFullscreen) document.msExitFullscreen();
-}
-
-overlay.addEventListener("click", enterFullscreen);
-exitBtn.addEventListener("click", exitFullscreen);
-
-document.addEventListener("fullscreenchange", () => {
-  if (!document.fullscreenElement) {
-    overlay.style.display = "flex"; // volta a aparecer quando sai do fullscreen
-  }
-});
-</script>
-<script>
-/* ===== Desenho Tático: correção para offset mobile (HiDPI + CSS size sync) ===== */
-(function(){
-  const canvas = document.getElementById("trace-canvas");
-  const penBtn = document.getElementById("pen-path-btn");
-  const socket = window.socket || (window.io ? io() : null);
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-
-  // Faz o canvas ocupar um tamanho CSS estável (se quiser, ajuste aqui)
-  // Se preferir que o canvas seja responsivo, ajuste o CSS; aqui usamos o rect atual.
-  function resizeCanvasForDisplay() {
-    const ratio = window.devicePixelRatio || 1;
-    // pega o tamanho CSS real do canvas (dependendo do layout)
-    const rect = canvas.getBoundingClientRect();
-
-    // forçar CSS width/height para o tamanho do rect (garante consistência)
-    canvas.style.width = rect.width + "px";
-    canvas.style.height = rect.height + "px";
-
-    // ajusta o buffer físico do canvas para HiDPI
-    canvas.width = Math.round(rect.width * ratio);
-    canvas.height = Math.round(rect.height * ratio);
-
-    // faz o ctx trabalhar em CSS pixels (transforma coords automaticamente)
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-  }
-
-  // chama no load e quando a viewport muda
-  resizeCanvasForDisplay();
-  window.addEventListener('resize', resizeCanvasForDisplay);
-  // também quando há rolagem (às vezes rect muda por UI do navegador)
-  window.addEventListener('scroll', () => {
-    // atualização leve — só se o canvas estiver visível
-    resizeCanvasForDisplay();
-  }, { passive: true });
-
-  // estado
-  let penMode = false;
-  let drawing = false;
-  let currentPath = [];
-  let pointerId = null;
-
-  // Toggle pen button: ativa/desativa captura de eventos
-  penBtn.addEventListener('click', () => {
-    penMode = !penMode;
-    penBtn.style.background = penMode ? "#33aaff" : "#222";
-    canvas.style.pointerEvents = penMode ? "auto" : "none";
-    penBtn.textContent = penMode ? "✎ Desenhando..." : "✎ Desenho Tático";
-    if (penMode) {
-      canvas.style.zIndex = "1000";
-    } else {
-      canvas.style.zIndex = "1";
-    }
-  });
-
-  // evita scroll durante desenho
-  canvas.style.touchAction = "none";
-
-  // converte evento -> coordenada em CSS pixels relativa ao canvas
-  function getCoordFromEvent(evt) {
-    const rect = canvas.getBoundingClientRect();
-    // pointer events: clientX/clientY
-    if (evt.clientX !== undefined && evt.clientY !== undefined) {
-      return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-    }
-    // touch fallback
-    if (evt.touches && evt.touches[0]) {
-      return { x: evt.touches[0].clientX - rect.left, y: evt.touches[0].clientY - rect.top };
-    }
-    return { x: 0, y: 0 };
-  }
-
-  // pointer events (recomendado)
-  canvas.addEventListener('pointerdown', (e) => {
-    if (!penMode || !e.isPrimary) return;
-    drawing = true;
-    pointerId = e.pointerId;
-    try { canvas.setPointerCapture(pointerId); } catch (er) {}
-    const { x, y } = getCoordFromEvent(e);
-    currentPath = [[x, y]];
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  });
-
-  canvas.addEventListener('pointermove', (e) => {
-    if (!penMode || !drawing || e.pointerId !== pointerId) return;
-    const { x, y } = getCoordFromEvent(e);
-    ctx.lineTo(x, y);
-    ctx.strokeStyle = "#ff3333";
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    currentPath.push([x, y]);
-  });
-
-  function finishDrawing(e) {
-    if (!drawing) return;
-    drawing = false;
-    try { canvas.releasePointerCapture(pointerId); } catch (er) {}
-    ctx.closePath();
-    if (socket && currentPath.length > 1) {
-      socket.emit('path_draw', { path: currentPath });
-    }
-
-    setTimeout(() => {
-      ctx.save();
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.globalAlpha = 1.0;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.restore();
-    }, 4000);
-
-    currentPath = [];
-    pointerId = null;
-  }
-
-  canvas.addEventListener('pointerup', finishDrawing);
-  canvas.addEventListener('pointercancel', finishDrawing);
-  canvas.addEventListener('pointerout', (e) => {
-    if (drawing && e.pointerId === pointerId) finishDrawing(e);
-  });
-
-  // touch fallback (mantém compatibilidade)
-  canvas.addEventListener('touchstart', (e) => {
-    if (!penMode) return;
-    e.preventDefault();
-    const c = getCoordFromEvent(e);
-    drawing = true;
-    currentPath = [[c.x, c.y]];
-    ctx.beginPath();
-    ctx.moveTo(c.x, c.y);
-  }, { passive: false });
-
-  canvas.addEventListener('touchmove', (e) => {
-    if (!penMode || !drawing) return;
-    e.preventDefault();
-    const c = getCoordFromEvent(e);
-    ctx.lineTo(c.x, c.y);
-    ctx.strokeStyle = "#ff3333";
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    currentPath.push([c.x, c.y]);
-  }, { passive: false });
-
-  canvas.addEventListener('touchend', (e) => {
-    if (!penMode || !drawing) return;
-    e.preventDefault();
-    drawing = false;
-    ctx.closePath();
-
-    if (socket && currentPath.length > 1) socket.emit('path_draw', { path: currentPath });
-    setTimeout(() => {
-      ctx.save();
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.globalAlpha = 1.0;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.restore();
-    }, 4000);
-
-    currentPath = [];
-  }, { passive: false });
-
-  // recebe e desenha paths de outros clientes (coord em CSS pixels)
-  if (socket) {
-    socket.on('path_draw', (data) => {
-      if (!data || !Array.isArray(data.path) || data.path.length === 0) return;
-      ctx.beginPath();
-      for (let i = 0; i < data.path.length; i++) {
-        const [x, y] = data.path[i];
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.strokeStyle = "#ff3333";
-      ctx.lineWidth = 4;
-      ctx.stroke();
-      ctx.closePath();
-      setTimeout(() => {
-        ctx.save();
-        ctx.globalCompositeOperation = "destination-out";
-        ctx.globalAlpha = 1.0;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.restore();
-      }, 4000);
-    });
-  }
-})();
-</script>
-<!-- === Chat do Treinador Abel Ferreira === -->
-<div id="chat-container" style="
-  position:fixed;bottom:20px;right:20px;width:300px;max-height:400px;
-  background:rgba(0,0,0,0.8);color:#fff;border-radius:10px;
-  display:flex;flex-direction:column;overflow:hidden;z-index:10001;
-  font-family:'Segoe UI',sans-serif;font-size:14px;">
-<div id="chat-header" style="background:#222;padding:10px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;color:#fff;">
-  <img src="./img/escudo-sepalmeiras.svg" alt="Abel Ferreira" style="width:24px;height:24px;border-radius:50%;">
-  Abel Ferreira
-</div>
-  <div id="chat-body" style="flex:1;overflow-y:auto;padding:10px;display:none;"></div>
-  <div id="chat-input-area" style="display:none;border-top:1px solid #333;padding:6px;gap:4px;">
-    <input id="chat-input" type="text" placeholder="Fala com o Abel..." 
-      style="flex:1;padding:6px;border:none;border-radius:6px;font-size:14px;">
-    <button id="chat-send" style="background:#0066cc;color:#fff;border:none;
-      border-radius:6px;padding:6px 10px;cursor:pointer;">Enviar</button>
-  </div>
-</div>
-
-<script>
-/* ====== Chat logic - CORREÇÃO COMPLETA ====== */
-// Variáveis e elementos devem ser definidas uma única vez.
-const coachChat = document.getElementById('coach-container'); // A caixa de chat principal
-const chatIcon = document.getElementById('chat-icon');   // O ícone flutuante
-const chatHeader = document.getElementById("chat-header");
-const chatBody = document.getElementById("chat-body");
-const chatInputArea = document.getElementById("chat-input-area");
-const chatInput = document.getElementById("chat-input");
-const chatSend = document.getElementById("chat-send");
-let chatOpen = false; // Estado do corpo interno do chat (true: aberto, false: minimizado)
-
-// ----------------------------------------------------
-// 1. Lógica para ABRIR (no clique do ícone flutuante)
-// ----------------------------------------------------
-if (chatIcon) {
-    chatIcon.addEventListener('click', () => {
-        // ABRIR: Esconde o ícone e mostra a caixa principal
-        chatIcon.style.display = 'none';
-        coachChat.style.display = 'flex'; // Use 'flex' ou 'block' conforme seu CSS
-        
-        // Garante que o corpo e input estejam visíveis
-        chatOpen = true; 
-        if (chatBody) chatBody.style.display = 'block';
-        if (chatInputArea) chatInputArea.style.display = 'flex';
-    });
-}
-
-// ----------------------------------------------------
-// 2. Lógica para MINIMIZAR / FECHAR (no clique do cabeçalho)
-// ----------------------------------------------------
-chatHeader.addEventListener("click", () => {
-    // Alterna o estado
-    chatOpen = !chatOpen;
-
-    if (chatOpen) {
-        // 🔹 Reabre o chat
-        coachChat.style.display = "flex";    // Mostra a caixa principal
-        chatBody.style.display = "block";    // Mostra corpo do chat
-        chatInputArea.style.display = "flex"; // Mostra área de input
-        chatIcon.style.display = "none";     // Esconde o ícone flutuante
-    } else {
-        // 🔹 Minimiza / fecha o chat
-        chatBody.style.display = "none";      // Esconde mensagens
-        chatInputArea.style.display = "none"; // Esconde input
-        coachChat.style.display = "none";     // Fecha a caixa principal
-        chatIcon.style.display = "flex";      // Mostra o ícone flutuante
-    }
-});
-
-
-// ----------------------------------------------------
-// 3. Funções de Chat e API (Permanece quase igual)
-// ----------------------------------------------------
-const url_render = 'https://sepalmeiras.onrender.com';
-
-function appendMessage(sender, text){
-    // ... (sua função appendMessage)
-    const msg = document.createElement("div");
-    msg.style.marginBottom = "8px";
-    msg.innerHTML = sender === "user"
-        ? `<div style="text-align:right;"><span style="background:#0066cc;padding:6px 10px;border-radius:8px;display:inline-block;">${text}</span></div>`
-        : `<div style="text-align:left;"><span style="background:#333;padding:6px 10px;border-radius:8px;display:inline-block;">${text}</span></div>`;
-    chatBody.appendChild(msg);
-    chatBody.scrollTop = chatBody.scrollHeight;
-}
-
-chatSend.addEventListener("click", async ()=>{
-    const message = chatInput.value.trim();
-    if (!message) return;
-    appendMessage("user", message);
-    chatInput.value = "";
-    try {
-        const res = await fetch(`https://sepalmeiras.onrender.com/api/chat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-            message: message  // envia o texto que o usuário digitou
-         })
-    });
-        const data = await res.json();
-        appendMessage("bot", data.reply || "O Abel ficou em silêncio...");
-    } catch(e){
-        appendMessage("bot","Erro de comunicação com o Abel.");
-        console.error(e);
-    }
-});
-
-chatInput.addEventListener("keydown", (e)=>{
-    if(e.key==="Enter"){ chatSend.click(); }
-});
-</script>
-<!-- === WebSocket: sincroniza jogadores em tempo real === -->
-<script>
-  socket.on("connect", () => {
-    console.log("📡 Conectado ao servidor WebSocket");
-  });
-
-  socket.on("disconnect", () => {
-    console.log("🔌 Desconectado do servidor");
-  });
-
-  // 🔴 Quando o servidor emitir uma nova análise tática
-  socket.on("tactical-analysis", (data) => {
-    console.log("📊 Atualização tática recebida:", data);
-
-    // Atualiza jogadores (ex: time verde/red)
-    if (data.red) {
-      for (const p of data.red) {
-        const el = document.getElementById("circle" + p.id);
-        if (el) {
-          el.style.transition = "left 1s ease, top 1s ease";
-          el.style.left = p.left + "px";
-          el.style.top = p.top + "px";
-        }
-      }
-    }
-  });
-
-// === Sincroniza jogadores em tempo real ===
-socket.on("player-move", (data) => {
-  const el = document.getElementById(data.id);
-  if (el) {
-    el.style.transition = "left 0.3s linear, top 0.3s linear";
-    el.style.left = data.left + "px";
-    el.style.top = data.top + "px";
-  }
-});
-
-socket.on("ball-move", (data) => {
-  const el = document.getElementById(data.id);
-  if (el) {
-    el.style.transition = "left 0.2s linear, top 0.2s linear";
-    el.style.left = data.left + "px";
-    el.style.top = data.top + "px";
-  }
-});
-</script>
-<div id="tactical-status" style="
-  position:fixed;
-  top:20px;
-  right:20px;
-  background:rgba(0,0,0,0.8);
-  color:#fff;
-  padding:14px 16px;
-  border-radius:10px;
-  font-family:'Segoe UI',sans-serif;
-  font-size:14px;
-  z-index:10002;
-  min-width:220px;
-  line-height:1.5;
-  box-shadow:0 0 8px rgba(0,0,0,0.3);
-  display:none;
-  transition:opacity 0.3s ease;
-"></div>
-<script>
-/* === SpeechSynthesis Initialization (Speech Fix Pro) === */
-let voicesReady = false;
-let selectedVoice = null;
-
-// Inicializa as vozes (chamado depois de interação do usuário)
-function initSpeech() {
-  // Tenta carregar lista de vozes
-  const loadVoices = () => {
-    const voices = speechSynthesis.getVoices();
-    if (voices.length > 0) {
-      // Prioriza voz em pt-BR (Luciana / Felipe)
-      selectedVoice = voices.find(v => v.lang === "pt-BR") || voices[0];
-      voicesReady = true;
-      console.log("✅ Voz carregada:", selectedVoice.name);
-    } else {
-      // Caso não estejam disponíveis ainda, tenta de novo
-      setTimeout(loadVoices, 300);
-    }
-  };
-  loadVoices();
-
-  // Hack para ativar contexto de áudio
-  const utter = new SpeechSynthesisUtterance("");
-  speechSynthesis.speak(utter);
-}
-
-// Ativa no primeiro clique/touch do usuário
-window.addEventListener("click", initSpeech, { once: true });
-window.addEventListener("touchstart", initSpeech, { once: true });
-
-// === Função global para falar ===
-function speakPlayerNumber(playerId) {
-  if (!voicesReady) {
-    console.warn("⚠️ Voz ainda não inicializada, ignorando fala.");
-    return;
-  }
-  const number = playerId.replace("circle", "");
-  const utter = new SpeechSynthesisUtterance("Jogador " + number);
-  utter.lang = "pt-BR";
-  utter.rate = 1.0;
-  if (selectedVoice) utter.voice = selectedVoice;
-  speechSynthesis.speak(utter);
-}
-</script>
-<!-- === HUD TÁTICO AVANÇADO === -->
-<div id="tactical-hud" style="
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  width: 230px;
-  background: rgba(0,0,0,0.7);
-  color: #fff;
-  padding: 10px;
-  border-radius: 10px;
-  font-size: 12px;
-  text-align: left;
-  line-height: 1.4;
-  border: 1px solid rgba(255,255,255,0.2);
-  box-shadow: 0 0 10px rgba(0,0,0,0.6);
-  display: none;
-  z-index: 999;
-">
-  <b>📊 Inteligência Tática</b><br>
-  <span id="hud-formations">Adversário: ? | Palmeiras: ?</span><br>
-  <span id="hud-phase">Fase: ?</span><br>
-  <span id="hud-block">Bloco: ? | Compactação: ?</span>
-</div>
-
-
 </body>
 </html>
+
