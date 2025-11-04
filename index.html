@@ -604,7 +604,7 @@ function getCurrentPossession() {
     const vision = await sendVisionTactic();
     console.log("🔎 Vision->Analyze: opponentFormationVision =", vision?.opponentFormation);
 
-    // passa a formação da visão para analyze()
+    // passa formação da visão para analyze()
     const res = await fetch("/ai/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
