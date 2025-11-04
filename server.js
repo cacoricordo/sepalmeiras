@@ -223,6 +223,44 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => console.log(`❌ Cliente saiu: ${socket.id}`));
 });
 
+// === Endpoint de chat do Abel (usando OpenRouter) ===
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { message } = req.body;
+    const apiKey = process.env.OPENROUTER_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "OPENROUTER_KEY ausente no servidor" });
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Tu és Abel Ferreira, treinador do Palmeiras. Fala com intensidade, energia e análise tática avançada." },
+          { role: "user", content: message }
+        ],
+        temperature: 0.8,
+        max_tokens: 180
+      })
+    });
+
+    const data = await response.json();
+    const reply = data?.choices?.[0]?.message?.content || "O Abel ficou em silêncio...";
+    res.json({ reply });
+
+  } catch (err) {
+    console.error("Erro no /api/chat:", err);
+    res.status(500).json({ error: "Falha na comunicação com o Abel", details: err.message });
+  }
+});
+
+
 // === Inicializa Render ===
 const PORT = process.env.PORT || 10000;
 httpServer.listen(PORT, () => console.log(`✅ AI TÁTICA v12.1.2 + Realtime rodando na porta ${PORT}`));
