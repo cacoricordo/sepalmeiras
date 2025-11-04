@@ -1,4 +1,4 @@
-// server.js — AI Tática v12.1.1 (Render Ready)
+// server.js — AI Tática v12.1.2 (Render + Realtime WebSocket)
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
@@ -6,30 +6,44 @@ import dotenv from "dotenv";
 import fetch from "node-fetch";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: [
+      "https://www.osinvictos.com.br",
+      "https://osinvictos.com.br",
+      "https://sepalmeiras.onrender.com",
+      "*"
+    ],
+    methods: ["GET", "POST"]
+  }
+});
 
 // === Configuração de diretórios ===
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// === Middleware básico ===
+// === Middleware ===
 app.use(cors());
 app.use(bodyParser.json());
-
-// === Servir frontend (index.html + assets) ===
 app.use(express.static(__dirname));
+
+// === Serve o frontend ===
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// === Constantes de campo ===
+// === Constantes ===
 const FIELD_WIDTH = 600;
 const FIELD_HEIGHT = 300;
 
-// === Banco de formações base ===
+// === Formações base ===
 const FORMATIONS = {
   "4-4-2": [
     { id:13, zone:[70,80] }, { id:14, zone:[70,220] },
@@ -72,15 +86,13 @@ const FORMATIONS = {
   ]
 };
 
-// === Detector geométrico FIFA 2D ===
+// === IA: Detector geométrico FIFA 2D ===
 function detectOpponentFormationAdvanced(players) {
   if (!players || players.length < 8) return "4-4-2";
 
-  // Ordena por Y
   const sorted = [...players].sort((a, b) => a.top - b.top);
   const lines = [];
 
-  // Agrupa por Y (≤ 60px de diferença)
   for (const p of sorted) {
     let line = lines.find(l => Math.abs(l.centerY - p.top) <= 60);
     if (line) {
@@ -112,7 +124,15 @@ function detectOpponentFormationAdvanced(players) {
   return shape === "4-3-3" || shape === "4-4-2" ? shape : "4-4-2";
 }
 
-// === Define contra-formação ===
+// === Fase / Bloco / Compactação ===
+function detectPhase(possession, opponentFormation) {
+  if (possession === "verde") return { phase: "Ataque", bloco: "Alto", compactacao: "Larga" };
+  if (["5-4-1", "4-5-1"].includes(opponentFormation)) return { phase: "Defesa", bloco: "Baixo", compactacao: "Curta" };
+  if (["4-4-2", "4-3-3"].includes(opponentFormation)) return { phase: "Transição", bloco: "Médio", compactacao: "Média" };
+  return { phase: "Defesa", bloco: "Baixo", compactacao: "Curta" };
+}
+
+// === Contra-formação ===
 function chooseCounterFormation(opponentFormation, possession) {
   if (possession === "verde") {
     switch (opponentFormation) {
@@ -133,15 +153,7 @@ function chooseCounterFormation(opponentFormation, possession) {
   }
 }
 
-// === Fase, bloco, compactação ===
-function detectPhase(possession, opponentFormation) {
-  if (possession === "verde") return { phase: "Ataque", bloco: "Alto", compactacao: "Larga" };
-  if (["5-4-1", "4-5-1"].includes(opponentFormation)) return { phase: "Defesa", bloco: "Baixo", compactacao: "Curta" };
-  if (["4-4-2", "4-3-3"].includes(opponentFormation)) return { phase: "Transição", bloco: "Médio", compactacao: "Média" };
-  return { phase: "Defesa", bloco: "Baixo", compactacao: "Curta" };
-}
-
-// === Palmeiras joga da DIREITA → ESQUERDA ===
+// === Monta o Palmeiras (direita → esquerda) ===
 function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
   const greenAI = [];
@@ -177,7 +189,7 @@ function abelSpeech(opponentFormation, detectedFormation, phase, bloco, compacta
   return `${pick(intro)} ${pick(corpo)} ${pick(contexto)}`;
 }
 
-// === Rota principal ===
+// === Endpoint IA ===
 app.post("/ai/analyze", async (req, res) => {
   try {
     const { green = [], black = [], ball = {}, possession = "preto" } = req.body;
@@ -200,7 +212,18 @@ app.post("/ai/analyze", async (req, res) => {
   }
 });
 
-// === Inicializa ===
+// === Socket.IO realtime ===
+io.on("connection", (socket) => {
+  console.log(`🔌 Cliente conectado: ${socket.id}`);
+
+  socket.on("player-move", (data) => socket.broadcast.emit("player-move", data));
+  socket.on("ball-move", (data) => socket.broadcast.emit("ball-move", data));
+  socket.on("path_draw", (data) => socket.broadcast.emit("path_draw", data));
+
+  socket.on("disconnect", () => console.log(`❌ Cliente saiu: ${socket.id}`));
+});
+
+// === Inicializa Render ===
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`✅ AI TÁTICA v12.1.1 rodando na porta ${PORT}`));
+httpServer.listen(PORT, () => console.log(`✅ AI TÁTICA v12.1.2 + Realtime rodando na porta ${PORT}`));
 
