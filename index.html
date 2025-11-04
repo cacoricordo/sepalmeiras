@@ -681,11 +681,16 @@ function getCurrentPossession() {
   return detectBallPossession(green, black, ball);
 }
 
-// ======================
-// MODO PRO - Função ÚNICA
-// Vision + Analyze + Render
-// ======================
-async function updateTacticalState() {
+
+    // === Botão da Análise IA ===
+    const aiBtn = document.getElementById('ai-analise-btn');
+    aiBtn.addEventListener("click", updateTacticalState);
+
+    // ======================
+    // MODO PRO - Função ÚNICA
+    // Vision + Analyze + Render
+    // ======================
+    async function updateTacticalState() {
 
   try {
     aiBtn.disabled = true;
@@ -740,58 +745,7 @@ async function updateTacticalState() {
     aiBtn.textContent = "Análise IA";
   }
 }
-    
-    // === Botão da Análise IA ===
-    const aiBtn = document.getElementById('ai-analise-btn');
-    aiBtn.addEventListener("click", updateTacticalState);
-
-      // === Atualiza HUD Tático ===
-    hudForm.textContent = `Adversário: ${data.opponentFormation || "?"} | Palmeiras: ${data.detectedFormation || "?"}`;
-    hudPhase.textContent = `Fase: ${data.phase?.toUpperCase() || "?"}`;
-    hudBlock.textContent = `Bloco: ${data.bloco || (data.phase === "ataque" ? "ALTO" : "BAIXO")} | Compactação: ${data.compactacao || "?"}`;
-    hudBox.style.display = "block";
-    hudBox.style.background = possession === "verde"
-      ? "rgba(0,128,0,0.8)"
-      : "rgba(50,50,50,0.8)";
-    hudBox.style.borderColor = possession === "verde" ? "#00ff66" : "#999";
-    hudBox.style.opacity = "1";
-
-    // === Movimenta o Palmeiras para a nova formação sugerida pela IA Vision ===
-if (data.green) {
-  animateTeam("circle", data.green, () => {
-    if (data.phase && data.opponentFormation) {
-      applyDynamicBlocks(data.green, (data.phase || "").toLowerCase(), data.opponentFormation);
-    }
-  });
-}
-
-    // === Exibe o comentário do Abel ===
-    if (data.coachComment) {
-      setTimeout(() => showAbelCommentPopup(data.coachComment), 5000);
-    }
-
-    // ✅ Só mostra uma mensagem do Abel
-    const comment = data.coachComment || data.visionReply;
-    if (comment && typeof showAbelCommentPopup === "function") {
-      showAbelCommentPopup(comment);
-    }
-
-    return data;
-
-  } catch (err) {
-    console.error("AI analyze error:", err);
-    notify("❌ Erro na análise da IA!", 4000);
-  } finally {
-    aiBtn.disabled = false;
-    aiBtn.textContent = "Análise IA";
-    setTimeout(() => (hudBox.style.opacity = "0.3"), 10000);
-  }
-});
 </script>
-
-
-<!-- Chat markup + script (mantido igual ao seu original) -->
-<!-- ... (se preferir, mantenho o bloco de chat original sem alterações) -->
 <script>
 /* === Controle de fullscreen e overlay === */
 const overlay = document.getElementById("fullscreen-overlay");
