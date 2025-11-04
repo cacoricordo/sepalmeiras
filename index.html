@@ -367,6 +367,40 @@ const ctx = canvas?.getContext("2d", { willReadFrequently: true });
 
 <script>
   // === Funções auxiliares ===
+function getOpponentPositions() {
+  const arr = [];
+
+  for (let i = 1; i <= 11; i++) {
+    const el = document.getElementById(`circle${i}`);
+    if (el) {
+      arr.push({
+        id: i,
+        left: parseInt(el.style.left || el.offsetLeft),
+        top: parseInt(el.style.top || el.offsetTop)
+      });
+    }
+  }
+
+  return arr;
+}
+
+function getPalmeirasPositions() {
+  const arr = [];
+
+  for (let i = 13; i <= 23; i++) {
+    const el = document.getElementById(`circle${i}`);
+    if (el) {
+      arr.push({
+        id: i,
+        left: parseInt(el.style.left || el.offsetLeft),
+        top: parseInt(el.style.top || el.offsetTop)
+      });
+    }
+  }
+
+  return arr;
+}
+
   function getPositions(prefix) {
     const arr = [];
     for (let i = 2; i <= 11; i++) {
@@ -477,38 +511,6 @@ function detectBallPossession(green, ball) {
   }
 }
 
-  // === Botão da Análise IA ===
-  const aiBtn = document.getElementById('ai-analise-btn');
-
-  aiBtn.addEventListener('click', async function() {
-  aiBtn.disabled = true;
-  aiBtn.textContent = "Analisando... ⚙️";
-  notify("🤖 Abel está avaliando o adversário e ajustando o Palmeiras...", 3000);
-
-  const hudBox = document.getElementById("tactical-hud");
-  const hudForm = document.getElementById("hud-formations");
-  const hudPhase = document.getElementById("hud-phase");
-  const hudBlock = document.getElementById("hud-block");
-
-  try {
-    const green = getPositions('circle');
-    const black = getPositions('black');
-    const ball = getBall();
-
-    // === Detecção de posse (pela bola mais próxima) ===
-    const closestGreen = Math.min(...green.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
-    const closestBlack = Math.min(...black.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
-    const possession = closestGreen < closestBlack ? "verde" : "preto";
-
-    const res = await fetch(`${window.location.origin}/ai/analyze`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ green, black, ball, possession })
-    });
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-
 // === Função: envia imagem do campo para análise visual (IA Vision) ===
 async function sendVisionTactic() {
   try {
@@ -552,10 +554,54 @@ async function sendVisionTactic() {
       showAbelCommentPopup(comment);
     }
 
+    return data;
+
   } catch (err) {
     console.error("❌ Erro ao enviar imagem para IA Vision:", err);
   }
 }
+
+  // === Botão da Análise IA ===
+  const aiBtn = document.getElementById('ai-analise-btn');
+
+  aiBtn.addEventListener('click', async function() {
+  aiBtn.disabled = true;
+  aiBtn.textContent = "Analisando... ⚙️";
+  notify("🤖 Abel está avaliando o adversário e ajustando o Palmeiras...", 3000);
+
+  const hudBox = document.getElementById("tactical-hud");
+  const hudForm = document.getElementById("hud-formations");
+  const hudPhase = document.getElementById("hud-phase");
+  const hudBlock = document.getElementById("hud-block");
+
+  try {
+    const green = getPalmeirasPositions(); 
+    const black = getOpponentPositions();
+    const ball = getBall();
+
+    // === Detecção de posse (pela bola mais próxima) ===
+    const closestGreen = Math.min(...green.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
+    const closestBlack = Math.min(...black.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
+    const possession = closestGreen < closestBlack ? "verde" : "preto";
+
+    const vision = await sendVisionTactic();
+
+    // passa a formação da visão para analyze()
+    const res = await fetch("/ai/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        green,
+        black,
+        ball,
+        possession,
+        opponentFormationVision: vision?.opponentFormation || null
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
 
 // === 🟢 BLOCO TÁTICO DINÂMICO (MOVE O TIME TODO) ===
 function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
@@ -624,8 +670,6 @@ function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
     if (data.coachComment) {
       setTimeout(() => showAbelCommentPopup(data.coachComment), 5000);
     }
-
-    await sendVisionTactic();
 
   } catch (err) {
     console.error("AI analyze error:", err);

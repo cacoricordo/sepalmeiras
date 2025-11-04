@@ -198,7 +198,7 @@ function abelSpeech(opponentFormation, detectedFormation, phase, bloco, compacta
 app.post("/ai/analyze", async (req, res) => {
   try {
     const { green = [], black = [], ball = {}, possession = "preto" } = req.body;
-    const opponentFormation = detectOpponentFormationAdvanced(black);
+    const opponentFormation = req.body.opponentFormationVision || detectOpponentFormationAdvanced(black);
     const detectedFormation = chooseCounterFormation(opponentFormation, possession);
     const { greenAI } = buildGreenFromFormation(detectedFormation, ball, possession === "verde" ? "ataque" : "defesa");
     const { phase, bloco, compactacao } = detectPhase(possession, opponentFormation);
@@ -284,13 +284,13 @@ app.post("/ai/vision-tactic", async (req, res) => {
       phase === "ataque" ? "ataque" : "defesa"
     );
 
-    return res.json({
-      opponentFormation: parsed.formation_opponent,
-      chosenFormation: formation_palmeiras,
-      phase: parsed.phase,
-      green: greenAI,
-      coachComment: parsed.comment
-    });
+return res.json({
+  opponentFormation: parsed.formation_opponent,
+  detectedFormation: formation_palmeiras,
+  phase: parsed.phase,
+  green: greenAI,
+  coachComment: parsed.comment
+});
 
   } catch (err) {
     console.error("❌ Erro /ai/vision-tactic:", err);
