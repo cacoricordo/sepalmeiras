@@ -509,24 +509,24 @@ function detectBallPossession(green, ball) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
-// === Função NOVA: Análise Tática Visual via GPT-4-Vision ===
+// === Função: envia imagem do campo para análise visual (IA Vision) ===
 async function sendVisionTactic() {
   try {
     const canvas = document.querySelector("canvas");
     if (!canvas) {
-      console.warn("❌ Canvas não encontrado para captura de imagem!");
+      console.warn("❌ Canvas não encontrado.");
       return;
     }
 
-    // Captura o campo como imagem base64
+    // Captura o campo atual como imagem base64
     const fieldImage = canvas.toDataURL("image/png");
-
-    // Detecta quem está com a posse (ex: "verde" ou "preto")
     const possession = typeof getCurrentPossession === "function"
       ? getCurrentPossession()
-      : "verde";
+      : "verde"; // ou "preto", se quiser inverter
 
-    // Envia pro backend
+    console.log("📸 Enviando imagem do campo para análise visual...");
+
+    // Envia ao backend
     const res = await fetch("/ai/vision-tactic", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -534,9 +534,8 @@ async function sendVisionTactic() {
     });
 
     const data = await res.json();
-    console.log("📊 Análise Visual GPT-4-Vision:", data.visionReply);
+    console.log("📊 Análise Visual GPT-Vision:", data.visionReply);
 
-    // Exibe o comentário do Abel no HUD
     if (typeof showAbelCommentPopup === "function") {
       showAbelCommentPopup(data.visionReply);
     } else {
@@ -544,11 +543,9 @@ async function sendVisionTactic() {
     }
 
   } catch (err) {
-    console.error("❌ Erro em sendVisionTactic():", err);
+    console.error("❌ Erro ao enviar imagem para IA Vision:", err);
   }
 }
-
-
 
     // === Atualiza HUD Tático ===
     hudForm.textContent = `Adversário: ${data.opponentFormation || "?"} | Palmeiras: ${data.detectedFormation || "?"}`;

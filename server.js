@@ -229,7 +229,7 @@ app.post("/ai/vision-tactic", async (req, res) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini-vision", // ✅ modelo com visão
+        model: "meta-llama/llama-3.2-11b-vision-instruct:free", // ✅ modelo com visão
         messages: [
           {
             role: "system",
@@ -242,7 +242,7 @@ app.post("/ai/vision-tactic", async (req, res) => {
             role: "user",
             content: [
               { type: "text", text: `A posse é do time ${possession}. Analise a imagem:` },
-              { type: "image_url", image_url: fieldImage }
+              { type: "image", image_url: fieldImage }
             ]
           }
         ]
