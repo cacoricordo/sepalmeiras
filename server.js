@@ -90,11 +90,13 @@ const FORMATIONS = {
 function detectOpponentFormationAdvanced(players) {
   if (!players || players.length < 8) return "4-4-2";
 
-  const sorted = [...players].sort((a, b) => a.top - b.top);
-  const lines = [];
+  const sortedByX = [...players].sort((a,b) => a.left - b.left);
+  const noGK = sortedByX.slice(1); // drop leftmost
 
+ const sorted = [...noGK].sort((a, b) => a.top - b.top);
+  const lines = [];
   for (const p of sorted) {
-    let line = lines.find(l => Math.abs(l.centerY - p.top) <= 45);
+    let line = lines.find(l => Math.abs(l.centerY - p.top) <= 50); // tolerância ligeiramente maior
     if (line) {
       line.players.push(p);
       line.centerY = (line.centerY * (line.players.length - 1) + p.top) / line.players.length;
@@ -107,25 +109,24 @@ function detectOpponentFormationAdvanced(players) {
   const counts = lines.map(l => l.players.length);
   const signature = counts.join("-");
 
-  if (signature === "5-4-1") return "5-4-1";
-  if (signature === "5-3-2") return "5-3-2";
-  if (signature === "4-3-3") return "4-3-3";
-  if (signature === "3-5-2") return "3-5-2";
-  if (signature === "4-2-3-1") return "4-2-3-1";
-  if (signature === "4-4-2") return "4-4-2";
+  // Mapeia assinaturas comuns (sem GK)
+  if (["4-4-2","4-3-3","4-2-3-1","5-4-1","5-3-2","3-5-2"].includes(signature)) return signature;
 
-  const FIELD_THIRD = FIELD_WIDTH / 3;
-  const def = players.filter(p => p.left < FIELD_THIRD);
-  const mid = players.filter(p => p.left >= FIELD_THIRD && p.left < FIELD_THIRD * 2);
-  const att = players.filter(p => p.left >= FIELD_THIRD * 2);
-  const shape = `${def.length}-${mid.length}-${att.length}`;
+  // Fallback por terços (sem GK) — menos enviesado
+  const FIELD_THIRD = 600 / 3; // mantém coerente com seu FIELD_WIDTH
+  const def = noGK.filter(p => p.left < FIELD_THIRD).length;
+  const mid = noGK.filter(p => p.left >= FIELD_THIRD && p.left < FIELD_THIRD * 2).length;
+  const att = noGK.filter(p => p.left >= FIELD_THIRD * 2).length;
+  const shape = `${def}-${mid}-${att}`;
 
-  if (shape === "5-4-1" || def.length >= 5) return "5-4-1";
-  if (shape === "5-3-2") return "5-3-2";
-  if (shape === "3-5-2") return "3-5-2";
-  if (shape === "4-3-3") return "4-3-3";
-  if (shape === "4-2-4") return "4-2-4";
-  return "4-4-2";
+  if (def >= 5 && att <= 1) return "5-4-1";
+  if (def === 4 && mid === 4 && att === 2) return "4-4-2";
+  if (def === 4 && mid === 3 && att === 3) return "4-3-3";
+  if (def === 4 && mid === 2 && att === 4) return "4-2-4";
+  if (def === 3 && mid === 5 && att === 2) return "3-5-2";
+
+  // Último fallback neutro (melhor que fixar 4-4-2)
+  return "4-2-3-1";
 }
 
 // === Fase / Bloco / Compactação ===

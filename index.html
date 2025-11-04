@@ -552,35 +552,31 @@ function getPalmeirasPositions() {
 
 // === Detecta posse de bola considerando lado do campo ===
 // Palmeiras defende à DIREITA e ataca à ESQUERDA
-function detectBallPossession(green, ball) {
-  let minDistGreen = Infinity;
+function detectBallPossession(green, black, ball) {
+  const field = document.getElementById('background-square');
+  const rect = field.getBoundingClientRect();
 
-  for (const p of green) {
-    const dx = p.left - ball.left;
-    const dy = p.top - ball.top;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < minDistGreen) minDistGreen = dist;
-  }
+  // Normaliza coordenadas para [0..FIELD_WIDTH]
+  const bx = (ball.left - rect.left);
+  const cx = rect.width / 2;
 
-  // Bola na metade esquerda do campo → Palmeiras provavelmente em ataque
-  // Bola na metade direita → Adversário em posse
-  const ballOnLeftSide = ball.left < window.innerWidth / 2;
+  // Distâncias mínimas
+  const dGreen = Math.min(...green.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
+  const dBlack = Math.min(...black.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
 
-  // Critério híbrido: distância + lado do campo
-  if (minDistGreen < 50 || ballOnLeftSide) {
-    return "verde"; // Palmeiras em posse (ataca da direita → esquerda)
-  } else {
-    return "preto"; // Adversário em posse (ataca da esquerda → direita)
-  }
+  // Peso leve pelo lado do campo (Palmeiras ataca da direita->esquerda)
+  const sideBias = bx < cx ? -8 : +8; // negativo favorece "verde" à esquerda
+
+  return (dGreen + sideBias) < dBlack ? "verde" : "preto";
 }
 
-// === API global para uso no Vision, Analyze e do HUD ===
+// E atualize getCurrentPossession para usar também o "black"
 function getCurrentPossession() {
   const green = getPalmeirasPositions();
+  const black = getOpponentPositions();
   const ball  = getBall();
-  return detectBallPossession(green, ball); // "verde" ou "preto"
+  return detectBallPossession(green, black, ball);
 }
-
 
   // === Botão da Análise IA ===
   const aiBtn = document.getElementById('ai-analise-btn');
@@ -603,7 +599,7 @@ function getCurrentPossession() {
     // === Detecção de posse (pela bola mais próxima) ===
     const closestGreen = Math.min(...green.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
     const closestBlack = Math.min(...black.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
-    const possession = closestGreen < closestBlack ? "verde" : "preto";
+    const possession = getCurrentPossession();
 
     const vision = await sendVisionTactic();
     console.log("🔎 Vision->Analyze: opponentFormationVision =", vision?.opponentFormation);
