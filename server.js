@@ -9,7 +9,16 @@ import { fileURLToPath } from "url";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
+// ========= OPENAI CONFIG =========
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+
 dotenv.config();
+
 
 const app = express();
 const httpServer = createServer(app);
