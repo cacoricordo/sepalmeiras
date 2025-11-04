@@ -174,7 +174,12 @@ function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
     greenAI.push({ id: pos.id, left: baseX, top: pos.zone[1] + jitter });
   }
 
-  greenAI.push({ id: 23, left: FIELD_WIDTH - 10, top: FIELD_HEIGHT / 2 });
+    greenAI.push({
+      id: 23,
+      left: FIELD_WIDTH - 15,     // fixo no gol direito
+      top: FIELD_HEIGHT / 2       // apenas desce/sobe pela IA Vision
+    });
+
   return { greenAI };
 }
 

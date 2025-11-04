@@ -538,8 +538,12 @@ async function sendVisionTactic() {
     console.log("📊 Visão Tática (backend):", data);
 
     // ✅ Se a IA devolveu nova formação para o Palmeiras → move os jogadores
-    if (data.green && data.phase && data.opponentFormation) {
-      applyDynamicBlocks(data.green, data.phase, data.opponentFormation);
+    if (Array.isArray(data.green) && data.green.length > 0) {
+      applyDynamicBlocks(
+        data.green,
+        data.phase?.toLowerCase() || "defesa",
+        data.opponentFormation || "4-4-2"
+      );
     }
 
     // ✅ Só mostra uma mensagem do Abel
@@ -553,49 +557,51 @@ async function sendVisionTactic() {
   }
 }
 
-// === 🟢 BLOCO TÁTICO DINÂMICO (SOBE / DESCE / COMPACTA) ===
+// === 🟢 BLOCO TÁTICO DINÂMICO (MOVE O TIME TODO) ===
 function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
-
   let blockOffsetX = 0;
 
-  // 📌 Regras táticas
-  if (phase === "ataque") {
-    blockOffsetX = -60; // sobe o bloco (vai para o ataque)
-  }
-  else if (phase === "defesa") {
-    blockOffsetX = 60; // recua o bloco
-  }
-  else if (phase === "transicao") {
-    blockOffsetX = -30; // preparação para subir linha
-  }
-
-  // 📌 Se o adversário estiver em bloco BAIXO (recuado)
-  if (opponentFormation === "4-4-2" || opponentFormation === "5-4-1") {
-    blockOffsetX = -90; // empurra o time para o ataque alto
+  // 🧠 Regra base pela fase tática
+  switch (phase) {
+    case "ataque":
+      blockOffsetX = -80; // sobe o bloco
+      break;
+    case "defesa":
+      blockOffsetX = 80; // recua o bloco
+      break;
+    case "transicao":
+      blockOffsetX = -40; // prepara linha
+      break;
   }
 
-  // 📌 Se o adversário estiver em pressão alta (4-3-3 ou 4-2-3-1)
-  if (opponentFormation === "4-3-3" || opponentFormation === "4-2-3-1") {
-    blockOffsetX = 90; // recua pra proteger a saída de bola
-  }
+  // 🎯 Ajuste baseado no adversário (reação tática)
+  if (opponentFormation === "4-4-2" || opponentFormation === "5-4-1")
+    blockOffsetX = -100; // retranca → Palmeiras empurra bloco
+  else if (opponentFormation === "4-3-3" || opponentFormation === "4-2-3-1")
+    blockOffsetX = 100; // pressão alta → recua bloco
 
-  // === APLICA MOVIMENTO COM SUAVIZAÇÃO ===
+  console.log(`🟢 Bloco aplicado: fase=${phase}, offset=${blockOffsetX}px`);
+
+  // 🚚 Move o time todo
   greenPlayers.forEach(p => {
     const el = document.getElementById(`circle${p.id}`);
-    if (el) {
-      const newX = p.left + blockOffsetX;
-      el.style.left = `${Math.max(20, Math.min(580, newX))}px`;
-      el.style.top = `${p.top}px`;
-    }
-  });
+    if (!el) return;
 
-  console.log(`🟢 Bloco tático aplicado: ${phase}, offset: ${blockOffsetX}px`);
+    const newX = p.left + blockOffsetX;
+
+    // 🧱 Limites laterais do campo 
+    el.style.left = `${Math.max(20, Math.min(580, newX))}px`;
+    el.style.top = `${p.top}px`; // mantém eixo Y
+
+    // Atualiza valores internos para o próximo ciclo
+    p.left = Math.max(20, Math.min(580, newX));
+  });
 }
 
     // === Atualiza HUD Tático ===
     hudForm.textContent = `Adversário: ${data.opponentFormation || "?"} | Palmeiras: ${data.detectedFormation || "?"}`;
-    hudPhase.textContent = `Fase: ${data.phase || "?"}`;
-    hudBlock.textContent = `Bloco: ${data.bloco || "?"} | Compactação: ${data.compactacao || "?"}`;
+    hudPhase.textContent = `Fase: ${data.phase?.toUpperCase() || "?"}`;
+    hudBlock.textContent = `Bloco: ${data.bloco || (data.phase === "ataque" ? "ALTO" : "BAIXO")} | Compactação: ${data.compactacao || "?"}`;
     hudBox.style.display = "block";
     hudBox.style.background = possession === "verde"
       ? "rgba(0,128,0,0.8)"
@@ -603,8 +609,16 @@ function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
     hudBox.style.borderColor = possession === "verde" ? "#00ff66" : "#999";
     hudBox.style.opacity = "1";
 
-    // === Movimenta o Palmeiras ===
-    if (data.green) animateTeam("circle", data.green);
+    // === Movimenta o Palmeiras para a nova formação sugerida pela IA Vision ===
+    if (data.green) {
+      animateTeam("circle", data.green, () => {
+        // ✅ Após animação da formação, aplica o bloco tático dinâmico
+        if (data.phase && data.opponentFormation) {
+          applyDynamicBlocks(data.green, data.phase, data.opponentFormation);
+        }
+      });
+    }
+
 
     // === Exibe o comentário do Abel ===
     if (data.coachComment) {
