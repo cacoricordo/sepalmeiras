@@ -43,52 +43,110 @@ app.get("/", (req, res) => {
 const FIELD_WIDTH = 600;
 const FIELD_HEIGHT = 300;
 
-// === Formações base ===
 const FORMATIONS = {
+  // ======================================================
+  // ✅ 4-4-2 (duas linhas muito nítidas + dupla de ataque)
+  // ======================================================
   "4-4-2": [
-    { id:13, zone:[70,80] }, { id:14, zone:[70,220] },
-    { id:15, zone:[100,130] }, { id:16, zone:[100,170] },
-    { id:17, zone:[200,80] }, { id:18, zone:[200,130] },
-    { id:19, zone:[200,170] }, { id:20, zone:[200,220] },
-    { id:21, zone:[320,120] }, { id:22, zone:[320,180] }
+    // DEFESA — laterais + zaga
+    { id:13, zone:[320, 80] }, { id:14, zone:[320,220] },   // laterais
+    { id:15, zone:[280,130] }, { id:16, zone:[280,170] },   // dupla de zaga
+
+    // MEIO — 2 volantes + 2 meias extremos
+    { id:17, zone:[210, 80] }, { id:18, zone:[210,130] },
+    { id:19, zone:[210,170] }, { id:20, zone:[210,220] },
+
+    // ATAQUE — dupla
+    { id:21, zone:[140,120] }, { id:22, zone:[140,180] }
   ],
+
+  // ======================================================
+  // ✅ 4-3-3 (linha com pontas abertos + volante central)
+  // ======================================================
   "4-3-3": [
-    { id:13, zone:[80,80] }, { id:14, zone:[80,220] },
-    { id:15, zone:[100,130] }, { id:16, zone:[100,170] },
-    { id:17, zone:[210,100] }, { id:18, zone:[210,150] }, { id:19, zone:[210,200] },
-    { id:20, zone:[320,80] }, { id:21, zone:[330,150] }, { id:22, zone:[320,220] }
+    // DEFESA
+    { id:13, zone:[320, 80] }, { id:14, zone:[320,220] },
+    { id:15, zone:[280,130] }, { id:16, zone:[280,170] },
+
+    // MEIO — volante + meias interiores
+    { id:17, zone:[230,100] }, { id:18, zone:[230,150] }, { id:19, zone:[230,200] },
+
+    // ATAQUE — extremos + centroavante
+    { id:20, zone:[150, 80] }, { id:21, zone:[150,150] }, { id:22, zone:[150,220] }
   ],
+
+  // ======================================================
+  // ✅ 4-2-3-1 (dupla de volantes + meia central + extremos)
+  // ======================================================
   "4-2-3-1": [
-    { id:13, zone:[70,80] }, { id:14, zone:[70,220] },
-    { id:15, zone:[100,130] }, { id:16, zone:[100,170] },
-    { id:17, zone:[170,110] }, { id:18, zone:[170,190] },
-    { id:19, zone:[230,80] }, { id:20, zone:[230,150] }, { id:21, zone:[230,220] },
-    { id:22, zone:[320,150] }
+    // DEFESA
+    { id:13, zone:[320, 80] }, { id:14, zone:[320,220] },
+    { id:15, zone:[280,130] }, { id:16, zone:[280,170] },
+
+    // VOLANTES (dupla)
+    { id:17, zone:[240,120] }, { id:18, zone:[240,180] },
+
+    // MEIAS (linha de 3)
+    { id:19, zone:[190, 90] }, { id:20, zone:[190,150] }, { id:21, zone:[190,210] },
+
+    // "9"
+    { id:22, zone:[130,150] }
   ],
+
+  // ======================================================
+  // ✅ 3-5-2 (linha de 3 atrás + alas + 3 meio + 2 atacantes)
+  // ======================================================
   "3-5-2": [
-    { id:13, zone:[70,100] }, { id:14, zone:[70,150] }, { id:15, zone:[70,200] },
-    { id:16, zone:[130,60] }, { id:17, zone:[130,240] },
-    { id:18, zone:[180,100] }, { id:19, zone:[180,150] }, { id:20, zone:[180,200] },
-    { id:21, zone:[320,120] }, { id:22, zone:[320,180] }
+    // DEFESA — 3 zagueiros
+    { id:13, zone:[330,100] }, { id:14, zone:[330,150] }, { id:15, zone:[330,200] },
+
+    // ALAS — largura
+    { id:16, zone:[260, 70] }, { id:17, zone:[260,230] },
+
+    // MEIO — 3 jogadores
+    { id:18, zone:[200,110] }, { id:19, zone:[200,150] }, { id:20, zone:[200,190] },
+
+    // ATAQUE — dupla
+    { id:21, zone:[130,120] }, { id:22, zone:[130,180] }
   ],
+
+  // ======================================================
+  // ✅ 5-4-1 (linha baixa, blocada, ala baixa)
+  // ======================================================
   "5-4-1": [
-    { id:13, zone:[60,70] }, { id:14, zone:[60,230] },
-    { id:15, zone:[80,130] }, { id:16, zone:[80,170] }, { id:17, zone:[100,150] },
-    { id:18, zone:[160,100] }, { id:19, zone:[160,200] },
-    { id:20, zone:[230,130] }, { id:21, zone:[300,120] }, { id:22, zone:[300,180] }
+    // DEFESA — linha de 5
+    { id:13, zone:[350, 90] }, { id:14, zone:[350,210] },
+    { id:15, zone:[300,130] }, { id:16, zone:[300,170] }, { id:17, zone:[330,150] },
+
+    // MEIO — 4 linha média
+    { id:18, zone:[220,100] }, { id:19, zone:[220,200] },
+    { id:20, zone:[180,130] }, { id:21, zone:[180,170] },
+
+    // ATACANTE isolado
+    { id:22, zone:[120,150] }
   ],
+
+  // ======================================================
+  // ✅ 5-3-2 (parecido com 5-4-1, mas 3 meias e dupla na frente)
+  // ======================================================
   "5-3-2": [
-    { id:13, zone:[60,90] }, { id:14, zone:[60,210] },
-    { id:15, zone:[90,150] },
-    { id:16, zone:[130,80] }, { id:17, zone:[130,220] },
-    { id:18, zone:[180,120] }, { id:19, zone:[180,180] },
-    { id:20, zone:[250,100] }, { id:21, zone:[320,120] }, { id:22, zone:[320,180] }
+    // DEFESA — linha de 5
+    { id:13, zone:[350, 90] }, { id:14, zone:[350,210] },
+    { id:15, zone:[300,150] },
+    { id:16, zone:[330,110] }, { id:17, zone:[330,190] },
+
+    // MEIO — 3 por dentro
+    { id:18, zone:[220,120] }, { id:19, zone:[220,180] }, { id:20, zone:[220,150] },
+
+    // ATAQUE — dupla
+    { id:21, zone:[140,120] }, { id:22, zone:[140,180] }
   ]
 };
 
+
 // === IA: Detector geométrico FIFA 2D ===
 function detectOpponentFormationAdvanced(players) {
-  if (!players || players.length < 8) return "4-4-2";
+  if (!players || players.length < 8) return "unknown";
 
   const sortedByX = [...players].sort((a,b) => a.left - b.left);
   const noGK = sortedByX.slice(1); // drop leftmost
@@ -203,7 +261,9 @@ function abelSpeech(opponentFormation, detectedFormation, phase, bloco, compacta
 app.post("/ai/analyze", async (req, res) => {
   try {
     const { green = [], black = [], ball = {}, possession = "preto" } = req.body;
-    const opponentFormation = req.body.opponentFormationVision || detectOpponentFormationAdvanced(black);
+    const opponentFormation = (req.body.opponentFormationVision && req.body.opponentFormationVision !== "null")
+    ? req.body.opponentFormationVision
+    : detectOpponentFormationAdvanced(black);
     const detectedFormation = chooseCounterFormation(opponentFormation, possession);
     const { greenAI } = buildGreenFromFormation(detectedFormation, ball, possession === "verde" ? "ataque" : "defesa");
     const { phase, bloco, compactacao } = detectPhase(possession, opponentFormation);
