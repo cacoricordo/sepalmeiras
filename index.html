@@ -353,6 +353,78 @@ const ctx = canvas?.getContext("2d", { willReadFrequently: true });
       }, 5000);
     });
   }
+
+  function animateTeam(prefix, positions) {
+    for (const p of positions) {
+      if (p.id === 23) continue;
+      const el = document.getElementById(prefix + p.id);
+      if (el) {
+        el.style.transition = 'left 1s ease, top 1s ease';
+        el.style.left = p.left + 'px';
+        el.style.top = p.top + 'px';
+      }
+    }
+  }
+
+// === 🟢 BLOCO TÁTICO DINÂMICO (MOVE O TIME TODO) ===
+function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
+  let blockOffsetX = 0;
+  switch ((phase || "").toLowerCase()) {
+    case "ataque":    blockOffsetX = -80; break;
+    case "defesa":    blockOffsetX =  80; break;
+    case "transicao": blockOffsetX = -40; break;
+  }
+  if (opponentFormation === "4-4-2" || opponentFormation === "5-4-1") blockOffsetX = -100;
+  else if (opponentFormation === "4-3-3" || opponentFormation === "4-2-3-1") blockOffsetX = 100;
+
+  console.log(`🟢 Bloco aplicado: fase=${phase}, offset=${blockOffsetX}px`);
+
+  greenPlayers.forEach(p => {
+    const el = document.getElementById(`circle${p.id}`);
+    if (!el) return;
+    const newX = p.left + blockOffsetX;
+    el.style.left = `${Math.max(20, Math.min(580, newX))}px`;
+    el.style.top  = `${p.top}px`;
+    p.left = Math.max(20, Math.min(580, newX));
+  });
+}
+
+// === Função: envia imagem do campo para análise visual (IA Vision) ===
+async function sendVisionTactic() {
+  try {
+    const canvas = document.querySelector("canvas");
+    if (!canvas) {
+      console.warn("❌ Canvas não encontrado.");
+      return;
+    }
+
+    const fieldImage = canvas.toDataURL("image/png");
+    const possession = typeof getCurrentPossession === "function"
+      ? getCurrentPossession()
+      : "verde";
+
+    const ball = typeof getBall === "function" ? getBall() : null;
+
+    console.log("📸 Enviando imagem do campo para análise visual...");
+    console.log("🖼️ fieldImage:", fieldImage.substring(0, 100));
+
+    const res = await fetch("/ai/vision-tactic", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fieldImage, possession, ball })
+    });
+
+    const data = await res.json();
+    console.log("📊 Visão Tática (backend):", data);
+
+    // ✅ Se a IA devolveu nova formação para o Palmeiras → move os jogadores
+    if (Array.isArray(data.green) && data.green.length > 0) {
+      applyDynamicBlocks(
+        data.green,
+        data.phase?.toLowerCase() || "defesa",
+        data.opponentFormation || "4-4-2"
+      );
+    }
 </script>
 
 <script>
@@ -420,18 +492,6 @@ function getPalmeirasPositions() {
     n.style.display = 'block';
     clearTimeout(n.timer);
     n.timer = setTimeout(() => (n.style.display = 'none'), duration);
-  }
-
-  function animateTeam(prefix, positions) {
-    for (const p of positions) {
-      if (p.id === 23) continue;
-      const el = document.getElementById(prefix + p.id);
-      if (el) {
-        el.style.transition = 'left 1s ease, top 1s ease';
-        el.style.left = p.left + 'px';
-        el.style.top = p.top + 'px';
-      }
-    }
   }
 
   // === Pop-up do Abel ===
@@ -506,54 +566,7 @@ function getCurrentPossession() {
   const ball  = getBall();
   return detectBallPossession(green, ball); // "verde" ou "preto"
 }
-
-
-// === Função: envia imagem do campo para análise visual (IA Vision) ===
-async function sendVisionTactic() {
-  try {
-    const canvas = document.querySelector("canvas");
-    if (!canvas) {
-      console.warn("❌ Canvas não encontrado.");
-      return;
-    }
-
-    const fieldImage = canvas.toDataURL("image/png");
-    const possession = typeof getCurrentPossession === "function"
-      ? getCurrentPossession()
-      : "verde";
-
-    const ball = typeof getBall === "function" ? getBall() : null;
-
-    console.log("📸 Enviando imagem do campo para análise visual...");
-    console.log("🖼️ fieldImage:", fieldImage.substring(0, 100));
-
-    const res = await fetch("/ai/vision-tactic", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fieldImage, possession, ball })
-    });
-
-    const data = await res.json();
-    console.log("📊 Visão Tática (backend):", data);
-
-    // ✅ Se a IA devolveu nova formação para o Palmeiras → move os jogadores
-    if (Array.isArray(data.green) && data.green.length > 0) {
-      applyDynamicBlocks(
-        data.green,
-        data.phase?.toLowerCase() || "defesa",
-        data.opponentFormation || "4-4-2"
-      );
-    }
-
-    // ✅ Só mostra uma mensagem do Abel
-    const comment = data.coachComment || data.visionReply;
-    if (comment && typeof showAbelCommentPopup === "function") {
-      showAbelCommentPopup(comment);
-    }
-
-    return data;
-
-  } catch (err) {
+  catch (err) {
     console.error("❌ Erro ao enviar imagem para IA Vision:", err);
   }
 }
@@ -600,30 +613,6 @@ async function sendVisionTactic() {
     const data = await res.json();
 
 
-// === 🟢 BLOCO TÁTICO DINÂMICO (MOVE O TIME TODO) ===
-function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
-  let blockOffsetX = 0;
-  switch ((phase || "").toLowerCase()) {
-    case "ataque":    blockOffsetX = -80; break;
-    case "defesa":    blockOffsetX =  80; break;
-    case "transicao": blockOffsetX = -40; break;
-  }
-  if (opponentFormation === "4-4-2" || opponentFormation === "5-4-1") blockOffsetX = -100;
-  else if (opponentFormation === "4-3-3" || opponentFormation === "4-2-3-1") blockOffsetX = 100;
-
-  console.log(`🟢 Bloco aplicado: fase=${phase}, offset=${blockOffsetX}px`);
-
-  greenPlayers.forEach(p => {
-    const el = document.getElementById(`circle${p.id}`);
-    if (!el) return;
-    const newX = p.left + blockOffsetX;
-    el.style.left = `${Math.max(20, Math.min(580, newX))}px`;
-    el.style.top  = `${p.top}px`;
-    p.left = Math.max(20, Math.min(580, newX));
-  });
-}
-
-
     // === Atualiza HUD Tático ===
     hudForm.textContent = `Adversário: ${data.opponentFormation || "?"} | Palmeiras: ${data.detectedFormation || "?"}`;
     hudPhase.textContent = `Fase: ${data.phase?.toUpperCase() || "?"}`;
@@ -644,12 +633,20 @@ if (data.green) {
   });
 }
 
-
-
     // === Exibe o comentário do Abel ===
     if (data.coachComment) {
       setTimeout(() => showAbelCommentPopup(data.coachComment), 5000);
     }
+
+    // ✅ Só mostra uma mensagem do Abel
+    const comment = data.coachComment || data.visionReply;
+    if (comment && typeof showAbelCommentPopup === "function") {
+      showAbelCommentPopup(comment);
+    }
+
+    return data;
+
+  } 
 
   } catch (err) {
     console.error("AI analyze error:", err);
@@ -903,7 +900,7 @@ document.addEventListener("fullscreenchange", () => {
 <script>
 /* ====== Chat logic - CORREÇÃO COMPLETA ====== */
 // Variáveis e elementos devem ser definidas uma única vez.
-const coachChat = document.getElementById('coach-chat'); // A caixa de chat principal
+const coachChat = document.getElementById('coach-container'); // A caixa de chat principal
 const chatIcon = document.getElementById('chat-icon');   // O ícone flutuante
 const chatHeader = document.getElementById("chat-header");
 const chatBody = document.getElementById("chat-body");
