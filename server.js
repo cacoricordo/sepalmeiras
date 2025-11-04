@@ -229,7 +229,7 @@ app.post("/ai/vision-tactic", async (req, res) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3.2-11b-vision-instruct:free", // ✅ modelo com visão
+        model: "moonshotai/kimi-vl-a3b-thinking:free", // ✅ modelo com visão
         messages: [
           {
             role: "system",

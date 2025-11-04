@@ -525,6 +525,7 @@ async function sendVisionTactic() {
       : "verde"; // ou "preto", se quiser inverter
 
     console.log("📸 Enviando imagem do campo para análise visual...");
+    console.log("🖼️ fieldImage:", fieldImage.substring(0, 100));
 
     // Envia ao backend
     const res = await fetch("/ai/vision-tactic", {
