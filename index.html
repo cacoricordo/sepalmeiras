@@ -86,6 +86,16 @@
   <button id="pen-path-btn" style="position:fixed;top:330px;left:302px;z-index:10000;">✎ Desenho Tático</button>
 
 <script>
+// ================= STATE =================
+const tacticalState = {
+  possession: "preto",
+  opponentFormation: null,
+  palFormation: "4-3-3",
+  phase: "defesa",
+  block: "baixo",
+  compactacao: "curta"
+};
+
 /* ===== CORE: movimento, socket, física e AI analyze ===== */
 const socket = io("https://sepalmeiras.onrender.com", {
   transports: ["websocket", "polling"],
@@ -298,11 +308,36 @@ socket.on("update_circle", (data) => {
   }
 });
 
+// FUNÇÃO ÚNICA
+function renderTacticState() {
+  if (!tacticalState.green) return;
+
+  animateTeam("circle", tacticalState.green);
+
+  applyDynamicBlocks(
+    tacticalState.green,
+    tacticalState.phase?.toLowerCase() || "defesa",
+    tacticalState.opponentFormation || "?"
+  );
+
+  // HUD
+  document.getElementById("hud-formations").textContent =
+    `Adversário: ${tacticalState.opponentFormation} | Palmeiras: ${tacticalState.palFormation}`;
+
+  document.getElementById("hud-phase").textContent =
+    `Fase: ${tacticalState.phase?.toUpperCase()}`;
+
+  document.getElementById("hud-block").textContent =
+    `Bloco: ${tacticalState.block} | Compactação: ${tacticalState.compactacao}`;
+
+  document.getElementById("tactical-hud").style.display = "block";
+}
 
 const canvas = document.getElementById("trace-canvas");
 const ctx = canvas?.getContext("2d", { willReadFrequently: true });
 
-  // === RECEBE DESENHOS DE OUTROS USUÁRIOS ===
+
+ // === RECEBE DESENHOS DE OUTROS USUÁRIOS ===
   if (window.socket) {
     socket.on("path_draw", (data) => {
       if (!data || !Array.isArray(data.path)) return;
@@ -365,6 +400,31 @@ const ctx = canvas?.getContext("2d", { willReadFrequently: true });
       }
     }
   }
+
+function renderTacticState() {
+  if (!tacticalState.green) return;
+
+  animateTeam("circle", tacticalState.green);
+
+  applyDynamicBlocks(
+    tacticalState.green,
+    tacticalState.phase?.toLowerCase() || "defesa",
+    tacticalState.opponentFormation || "?"
+  );
+
+  // HUD
+  document.getElementById("hud-formations").textContent =
+    `Adversário: ${tacticalState.opponentFormation} | Palmeiras: ${tacticalState.palFormation}`;
+
+  document.getElementById("hud-phase").textContent =
+    `Fase: ${tacticalState.phase?.toUpperCase()}`;
+
+  document.getElementById("hud-block").textContent =
+    `Bloco: ${tacticalState.block} | Compactação: ${tacticalState.compactacao}`;
+
+  document.getElementById("tactical-hud").style.display = "block";
+}
+
 
 // === 🟢 BLOCO TÁTICO DINÂMICO (MOVE O TIME TODO) ===
 function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
@@ -621,34 +681,25 @@ function getCurrentPossession() {
   return detectBallPossession(green, black, ball);
 }
 
-  // === Botão da Análise IA ===
-  const aiBtn = document.getElementById('ai-analise-btn');
-
-  aiBtn.addEventListener('click', async function() {
-  aiBtn.disabled = true;
-  aiBtn.textContent = "Analisando... ⚙️";
-  notify("🤖 Abel está avaliando o adversário e ajustando o Palmeiras...", 3000);
-
-  const hudBox = document.getElementById("tactical-hud");
-  const hudForm = document.getElementById("hud-formations");
-  const hudPhase = document.getElementById("hud-phase");
-  const hudBlock = document.getElementById("hud-block");
+// ======================
+// MODO PRO - Função ÚNICA
+// Vision + Analyze + Render
+// ======================
+async function updateTacticalState() {
 
   try {
-    const green = getPalmeirasPositions(); 
-    const black = getOpponentPositions();
+    aiBtn.disabled = true;
+    aiBtn.textContent = "⌛ IA Calculando...";
+
+    const possession = getCurrentPossession();   // "verde" ou "preto"
     const ball = getBall();
+    const green = getPalmeirasPositions();
+    const black = getOpponentPositions();
 
-    // === Detecção de posse (pela bola mais próxima) ===
-    const closestGreen = Math.min(...green.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
-    const closestBlack = Math.min(...black.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
-    const fieldImage = makeVisionSnapshot();
-    const possession = getCurrentPossession();
+    // === 1) GPT-VISION (imagem do campo)
+    const vision = await sendVisionTactic();  // já usa makeVisionSnapshot()
 
-    const vision = await sendVisionTactic();
-    console.log("🔎 Vision->Analyze: opponentFormationVision =", vision?.opponentFormation);
-
-    // passa formação da visão para analyze()
+    // === 2) ANALYZE (decisão tática do backend)
     const res = await fetch("/ai/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -661,18 +712,40 @@ function getCurrentPossession() {
       })
     });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    const analyze = await res.json();
 
-    // 🟢 aplicar a formação vinda do /ai/analyze
-    animateTeam("circle", data.green);
-    applyDynamicBlocks(
-        data.green,
-        data.phase?.toLowerCase() || "defesa",
-        data.opponentFormation
-    );
+    // === 3) ESTADO GLOBAL (tacticalState)
+    tacticalState.possession        = possession;
+    tacticalState.opponentFormation = analyze.opponentFormation;
+    tacticalState.palFormation      = analyze.detectedFormation;
+    tacticalState.phase             = analyze.phase;
+    tacticalState.block             = analyze.bloco;
+    tacticalState.compactacao       = analyze.compactacao;
+    tacticalState.green             = analyze.green; // <-- POSIÇÕES JÁ calculadas!
 
-    // === Atualiza HUD Tático ===
+    // === 4) RENDER (HUD + animação)
+    renderTacticState();  // <<--- ESSENCIAL
+
+    // mostrar comentário do treinador
+    if (analyze.coachComment) {
+      showAbelCommentPopup(analyze.coachComment);
+    }
+
+  } catch(err) {
+    console.error("Erro no Modo PRO:", err);
+    notify("❌ Erro na IA Tática", 3000);
+
+  } finally {
+    aiBtn.disabled = false;
+    aiBtn.textContent = "Análise IA";
+  }
+}
+    
+    // === Botão da Análise IA ===
+    const aiBtn = document.getElementById('ai-analise-btn');
+    aiBtn.addEventListener("click", updateTacticalState);
+
+      // === Atualiza HUD Tático ===
     hudForm.textContent = `Adversário: ${data.opponentFormation || "?"} | Palmeiras: ${data.detectedFormation || "?"}`;
     hudPhase.textContent = `Fase: ${data.phase?.toUpperCase() || "?"}`;
     hudBlock.textContent = `Bloco: ${data.bloco || (data.phase === "ataque" ? "ALTO" : "BAIXO")} | Compactação: ${data.compactacao || "?"}`;
