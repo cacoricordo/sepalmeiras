@@ -161,16 +161,6 @@ let lastSpoken = {}; // cooldown das falas
 let ballVelocity = { x: 0, y: 0 }; // vetor de velocidade da bola
 let ballMoving = false;
 
-// === Detecta colisão ===
-function checkCollision(playerEl, ballEl) {
-  const pr = playerEl.getBoundingClientRect();
-  const br = ballEl.getBoundingClientRect();
-  const dx = pr.left - br.left;
-  const dy = pr.top - br.top;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  return distance < 30;
-}
-
 // === Fala o número do jogador ===
 function speakPlayerNumber(playerId) {
   const number = playerId.replace("circle", "");
@@ -434,7 +424,7 @@ function getPalmeirasPositions() {
 
   function animateTeam(prefix, positions) {
     for (const p of positions) {
-      if (p.id === 23) return;
+      if (p.id === 23) continue;
       const el = document.getElementById(prefix + p.id);
       if (el) {
         el.style.transition = 'left 1s ease, top 1s ease';
@@ -510,6 +500,13 @@ function detectBallPossession(green, ball) {
     return "preto"; // Adversário em posse (ataque esquerda→direita)
   }
 }
+
+function getCurrentPossession() {
+  const green = getPalmeirasPositions();
+  const ball  = getBall();
+  return detectBallPossession(green, ball); // "verde" ou "preto"
+}
+
 
 // === Função: envia imagem do campo para análise visual (IA Vision) ===
 async function sendVisionTactic() {
@@ -606,43 +603,26 @@ async function sendVisionTactic() {
 // === 🟢 BLOCO TÁTICO DINÂMICO (MOVE O TIME TODO) ===
 function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
   let blockOffsetX = 0;
-
-  // 🧠 Regra base pela fase tática
-  switch (phase) {
-    case "ataque":
-      blockOffsetX = -80; // sobe o bloco
-      break;
-    case "defesa":
-      blockOffsetX = 80; // recua o bloco
-      break;
-    case "transicao":
-      blockOffsetX = -40; // prepara linha
-      break;
+  switch ((phase || "").toLowerCase()) {
+    case "ataque":    blockOffsetX = -80; break;
+    case "defesa":    blockOffsetX =  80; break;
+    case "transicao": blockOffsetX = -40; break;
   }
-
-  // 🎯 Ajuste baseado no adversário (reação tática)
-  if (opponentFormation === "4-4-2" || opponentFormation === "5-4-1")
-    blockOffsetX = -100; // retranca → Palmeiras empurra bloco
-  else if (opponentFormation === "4-3-3" || opponentFormation === "4-2-3-1")
-    blockOffsetX = 100; // pressão alta → recua bloco
+  if (opponentFormation === "4-4-2" || opponentFormation === "5-4-1") blockOffsetX = -100;
+  else if (opponentFormation === "4-3-3" || opponentFormation === "4-2-3-1") blockOffsetX = 100;
 
   console.log(`🟢 Bloco aplicado: fase=${phase}, offset=${blockOffsetX}px`);
 
-  // 🚚 Move o time todo
   greenPlayers.forEach(p => {
     const el = document.getElementById(`circle${p.id}`);
     if (!el) return;
-
     const newX = p.left + blockOffsetX;
-
-    // 🧱 Limites laterais do campo 
     el.style.left = `${Math.max(20, Math.min(580, newX))}px`;
-    el.style.top = `${p.top}px`; // mantém eixo Y
-
-    // Atualiza valores internos para o próximo ciclo
+    el.style.top  = `${p.top}px`;
     p.left = Math.max(20, Math.min(580, newX));
   });
 }
+
 
     // === Atualiza HUD Tático ===
     hudForm.textContent = `Adversário: ${data.opponentFormation || "?"} | Palmeiras: ${data.detectedFormation || "?"}`;
@@ -656,14 +636,14 @@ function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
     hudBox.style.opacity = "1";
 
     // === Movimenta o Palmeiras para a nova formação sugerida pela IA Vision ===
-    if (data.green) {
-      animateTeam("circle", data.green, () => {
-        // ✅ Após animação da formação, aplica o bloco tático dinâmico
-        if (data.phase && data.opponentFormation) {
-          applyDynamicBlocks(data.green, data.phase, data.opponentFormation);
-        }
-      });
+if (data.green) {
+  animateTeam("circle", data.green, () => {
+    if (data.phase && data.opponentFormation) {
+      applyDynamicBlocks(data.green, (data.phase || "").toLowerCase(), data.opponentFormation);
     }
+  });
+}
+
 
 
     // === Exibe o comentário do Abel ===
@@ -935,7 +915,7 @@ let chatOpen = false; // Estado do corpo interno do chat (true: aberto, false: m
 // ----------------------------------------------------
 // 1. Lógica para ABRIR (no clique do ícone flutuante)
 // ----------------------------------------------------
-if (chatIcon && coachChat) {
+if (chatIcon) {
     chatIcon.addEventListener('click', () => {
         // ABRIR: Esconde o ícone e mostra a caixa principal
         chatIcon.style.display = 'none';
