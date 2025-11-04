@@ -432,7 +432,8 @@ async function sendVisionTactic() {
     if (data.coachComment && typeof showAbelCommentPopup === "function") {
       showAbelCommentPopup(data.coachComment);
     }
-
+    
+    return data;
   } catch (err) {
     console.error("❌ Erro ao enviar imagem para IA Vision:", err);
   }
@@ -605,6 +606,7 @@ function getCurrentPossession() {
     const possession = closestGreen < closestBlack ? "verde" : "preto";
 
     const vision = await sendVisionTactic();
+    console.log("🔎 Vision->Analyze: opponentFormationVision =", vision?.opponentFormation);
 
     // passa a formação da visão para analyze()
     const res = await fetch("/ai/analyze", {

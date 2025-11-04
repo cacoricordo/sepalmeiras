@@ -94,7 +94,7 @@ function detectOpponentFormationAdvanced(players) {
   const lines = [];
 
   for (const p of sorted) {
-    let line = lines.find(l => Math.abs(l.centerY - p.top) <= 60);
+    let line = lines.find(l => Math.abs(l.centerY - p.top) <= 45);
     if (line) {
       line.players.push(p);
       line.centerY = (line.centerY * (line.players.length - 1) + p.top) / line.players.length;
@@ -107,21 +107,25 @@ function detectOpponentFormationAdvanced(players) {
   const counts = lines.map(l => l.players.length);
   const signature = counts.join("-");
 
-  if (signature.startsWith("4-3-3")) return "4-3-3";
-  if (signature.startsWith("4-4-2")) return "4-4-2";
-  if (signature.startsWith("3-5-2")) return "3-5-2";
-  if (signature.startsWith("5-4-1")) return "5-4-1";
-  if (signature.startsWith("4-2-3-1")) return "4-2-3-1";
-  if (signature.startsWith("5-3-2")) return "5-3-2";
-  if (signature.startsWith("4-5-1")) return "4-5-1";
-  if (signature.startsWith("3-4-3")) return "3-4-3";
+  if (signature === "5-4-1") return "5-4-1";
+  if (signature === "5-3-2") return "5-3-2";
+  if (signature === "4-3-3") return "4-3-3";
+  if (signature === "3-5-2") return "3-5-2";
+  if (signature === "4-2-3-1") return "4-2-3-1";
+  if (signature === "4-4-2") return "4-4-2";
 
   const FIELD_THIRD = FIELD_WIDTH / 3;
   const def = players.filter(p => p.left < FIELD_THIRD);
   const mid = players.filter(p => p.left >= FIELD_THIRD && p.left < FIELD_THIRD * 2);
   const att = players.filter(p => p.left >= FIELD_THIRD * 2);
   const shape = `${def.length}-${mid.length}-${att.length}`;
-  return shape === "4-3-3" || shape === "4-4-2" ? shape : "4-4-2";
+
+  if (shape === "5-4-1" || def.length >= 5) return "5-4-1";
+  if (shape === "5-3-2") return "5-3-2";
+  if (shape === "3-5-2") return "3-5-2";
+  if (shape === "4-3-3") return "4-3-3";
+  if (shape === "4-2-4") return "4-2-4";
+  return "4-4-2";
 }
 
 // === Fase / Bloco / Compactação ===
@@ -285,11 +289,11 @@ app.post("/ai/vision-tactic", async (req, res) => {
     );
 
 return res.json({
-  opponentFormation: parsed.formation_opponent,
-  detectedFormation: formation_palmeiras,
-  phase: parsed.phase,
+  opponentFormation: parsed.formation_opponent || null,
+  detectedFormation: formation_palmeiras || null,
+  phase: parsed.phase || null,
   green: greenAI,
-  coachComment: parsed.comment
+  coachComment: parsed.comment || ""
 });
 
   } catch (err) {
