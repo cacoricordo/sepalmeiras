@@ -465,7 +465,20 @@ async function sendVisionTactic() {
 </script> 
 
 <script>
-  // === Funções auxiliares ===
+// ======================
+// ESTADO GLOBAL MODO PRO
+// ======================
+const tacticalState = {
+  possession: "preto",
+  opponentFormation: null,
+  palFormation: "4-3-3",
+  phase: "defesa",
+  block: "baixo",
+  compactacao: "curta",
+  green: []
+};
+
+// === Funções auxiliares ===
 function makeVisionSnapshot() {
   const cw = 600, ch = 300;         // mesmo FIELD_WIDTH/HEIGHT do servidor
   const off = document.createElement("canvas");
@@ -694,11 +707,98 @@ async function updateTacticalState() {
     aiBtn.textContent = "Análise IA";
   }
 }
+
+// ======================
+// IA AUTOMÁTICA (Lightning Mode)
+// Apenas 1 requisição ao backend
+// ======================
+
+let lastPossession = null;
+let autoRunning = false;
+
+async function autoAnalyzeLoop() {
+  if (autoRunning) return;
+  autoRunning = true;
+
+  const payload = {
+    fieldImage: makeVisionSnapshot(),
+    green: getPalmeirasPositions(),
+    black: getOpponentPositions(),
+    ball: getBall(),
+    possession: getCurrentPossession()
+  };
+
+  const res = await fetch("/ai/tactical-auto", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+
+  if (data.possession !== lastPossession || data.detectedFormation !== tacticalState.palFormation) {
+
+    tacticalState.possession        = data.possession;
+    tacticalState.opponentFormation = data.opponentFormation;
+    tacticalState.palFormation      = data.detectedFormation;
+    tacticalState.phase             = data.phase;
+    tacticalState.block             = data.bloco;
+    tacticalState.compactacao       = data.compactacao;
+    tacticalState.green             = data.green;
+
+    renderTacticState();
+
+    if (data.coachComment) showAbelCommentPopup(data.coachComment);
+  }
+
+  lastPossession = data.possession;
+  autoRunning = false;
+}
+
+// Roda a IA de 600 em 600ms
+setInterval(autoAnalyzeLoop, 600);
 </script>
 <!-- ====================== -->
 <!-- IA AUTOMÁTICA (MODO PRO AUTO) -->
 <!-- ====================== -->
 <script>
+
+// ======================
+// Render do estado tático (MODO PRO)
+// ======================
+function renderTacticState() {
+  if (!tacticalState.green || tacticalState.green.length === 0) return;
+
+  // 1) Move os jogadores para as novas posições sugeridas pelo backend
+  animateTeam("circle", tacticalState.green, () => {
+    // 2) Após a animação terminar, aplica bloco + compactação + fase
+    applyDynamicBlocks(
+      tacticalState.green,
+      tacticalState.phase?.toLowerCase() || "defesa",
+      tacticalState.opponentFormation || "?"
+    );
+  });
+
+  // 3) Atualiza HUD (aquele painel com formações + fase + bloco)
+  const hudForm = document.getElementById("hud-formations");
+  const hudPhase = document.getElementById("hud-phase");
+  const hudBlock = document.getElementById("hud-block");
+  const hudBox = document.getElementById("hud-box");
+
+  if (hudForm) {
+    hudForm.innerText = `Adversário: ${tacticalState.opponentFormation} | Palmeiras: ${tacticalState.palFormation}`;
+  }
+
+  if (hudPhase) {
+    hudPhase.innerText = `Fase: ${tacticalState.phase}`;
+  }
+
+  if (hudBlock) {
+    hudBlock.innerText = `Bloco: ${tacticalState.block} | Compactação: ${tacticalState.compactacao}`;
+  }
+
+  if (hudBox) hudBox.style.op
+
 // ======================
 // IA AUTOMÁTICA (somente 1 request ao backend)
 // ======================
