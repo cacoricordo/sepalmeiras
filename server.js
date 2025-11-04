@@ -257,112 +257,51 @@ function abelSpeech(opponentFormation, detectedFormation, phase, bloco, compacta
   return `${pick(intro)} ${pick(corpo)} ${pick(contexto)}`;
 }
 
-// === Endpoint IA ===
-app.post("/ai/analyze", async (req, res) => {
+app.post("/ai/tactical-auto", async (req, res) => {
   try {
-    const { green = [], black = [], ball = {}, possession = "preto" } = req.body;
-    const opponentFormation = (req.body.opponentFormationVision && req.body.opponentFormationVision !== "null")
-    ? req.body.opponentFormationVision
-    : detectOpponentFormationAdvanced(black);
-    const detectedFormation = chooseCounterFormation(opponentFormation, possession);
-    const { greenAI } = buildGreenFromFormation(detectedFormation, ball, possession === "verde" ? "ataque" : "defesa");
-    const { phase, bloco, compactacao } = detectPhase(possession, opponentFormation);
+    const { fieldImage, green, black, ball, possession } = req.body;
 
-    let coachComment = "";
-    if (opponentFormation !== lastFormation || phase !== lastPhase) {
-      coachComment = abelSpeech(opponentFormation, detectedFormation, phase, bloco, compactacao);
-      lastFormation = opponentFormation;
-      lastPhase = phase;
-    }
-
-    res.json({ opponentFormation, detectedFormation, phase, bloco, compactacao, coachComment, green: greenAI });
-  } catch (err) {
-    console.error("Erro /ai/analyze", err);
-    res.status(500).json({ error: "Erro interno IA", details: err.message });
-  }
-});
-
-// === IA VISUAL + AÇÃO TÁTICA REAL ===
-app.post("/ai/vision-tactic", async (req, res) => {
-  try {
-    const { fieldImage, possession, ball } = req.body;
-    const apiKey = process.env.OPENROUTER_KEY;
-
-    if (!apiKey) return res.status(500).json({ error: "OPENROUTER_KEY ausente" });
-
-    console.log("📸 Imagem recebida, enviando para análise Vision...");
-
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "qwen/qwen2.5-vl-32b-instruct",
-        messages: [
-          {
-            role: "system",
-            content: `
-              Você é um analista tático especialista em Palmeiras.
-              Interprete a imagem como futebol real.
-              Retorne EXATAMENTE neste JSON:
-
-              {
-                "formation_opponent": "4-4-2",
-                "formation_palmeiras": "4-3-3",
-                "phase": "ataque" | "defesa" | "transicao",
-                "comment": "texto curto"
-              }
-
-              Não use markdown. Apenas JSON puro.
-            `
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: `A posse é do time ${possession}. Aqui está a imagem:` },
-              { type: "input_image", image_data: fieldImage }
-            ]
-          }
-        ]
-      })
+    // === 1) GPT Vision: interpretação da imagem do campo ===
+    const visionResponse = await openai.chat.completions.create({
+      model: "gpt-5-vision",
+      messages: [
+        {
+          role: "system",
+          content: "Você é um analista tático profissional. Detecte formação e fase."
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Analise a formação do adversário e fase do Palmeiras." },
+            { type: "image_url", image_url: fieldImage }
+          ]
+        }
+      ]
     });
 
-    const data = await response.json();
-    console.log("📦 Resposta Vision:", JSON.stringify(data, null, 2));
+    const vision = JSON.parse(visionResponse.choices[0].message.content);
+    const opponentFormationVision = vision.opponentFormation;
 
-    let parsed;
-    try {
-      parsed = JSON.parse(data?.choices?.[0]?.message?.content);
-    } catch {
-      return res.json({ error: "Visão não retornou JSON estruturado." });
-    }
+    // === 2) IA geométrica (detecta formação do Palmeiras via posições)
+    const tactical = detectFormationAndPhase(green, black, ball, possession, opponentFormationVision);
 
-    console.log("🧠 Visão interpretou:", parsed);
-
-    // 🔥 MOVE O PALMEIRAS AUTOMATICAMENTE
-    const { formation_palmeiras, phase } = parsed;
-    const { greenAI } = buildGreenFromFormation(
-      formation_palmeiras ?? "4-3-3",
-      ball,
-      phase === "ataque" ? "ataque" : "defesa"
+    // === 3) Modelo do treinador (Abel, Vojvoda, etc)
+    const coachComment = await generateCoachComment(
+      tactical.detectedFormation,
+      tactical.phase
     );
 
-return res.json({
-  opponentFormation: parsed.formation_opponent || null,
-  detectedFormation: formation_palmeiras || null,
-  phase: parsed.phase || null,
-  green: greenAI,
-  coachComment: parsed.comment || ""
-});
+    // devolve tudo numa requisição só
+    res.json({
+      ...tactical,
+      coachComment
+    });
 
   } catch (err) {
-    console.error("❌ Erro /ai/vision-tactic:", err);
-    res.status(500).json({ error: "Falha na análise visual", details: err.message });
+    console.error("❌ ERRO /ai/tactical-auto:", err);
+    res.status(500).json({ error: "Erro IA" });
   }
 });
-
 
 
 // === Socket.IO realtime ===

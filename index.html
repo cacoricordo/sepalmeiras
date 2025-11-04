@@ -308,31 +308,6 @@ socket.on("update_circle", (data) => {
   }
 });
 
-// FUNÇÃO ÚNICA
-function renderTacticState() {
-  if (!tacticalState.green) return;
-
-  animateTeam("circle", tacticalState.green);
-
-  applyDynamicBlocks(
-    tacticalState.green,
-    tacticalState.phase?.toLowerCase() || "defesa",
-    tacticalState.opponentFormation || "?"
-  );
-
-  // HUD
-  document.getElementById("hud-formations").textContent =
-    `Adversário: ${tacticalState.opponentFormation} | Palmeiras: ${tacticalState.palFormation}`;
-
-  document.getElementById("hud-phase").textContent =
-    `Fase: ${tacticalState.phase?.toUpperCase()}`;
-
-  document.getElementById("hud-block").textContent =
-    `Bloco: ${tacticalState.block} | Compactação: ${tacticalState.compactacao}`;
-
-  document.getElementById("tactical-hud").style.display = "block";
-}
-
 const canvas = document.getElementById("trace-canvas");
 const ctx = canvas?.getContext("2d", { willReadFrequently: true });
 
@@ -401,17 +376,6 @@ const ctx = canvas?.getContext("2d", { willReadFrequently: true });
     }
   }
 
-function renderTacticState() {
-  if (!tacticalState.green) return;
-
-  animateTeam("circle", tacticalState.green);
-
-  applyDynamicBlocks(
-    tacticalState.green,
-    tacticalState.phase?.toLowerCase() || "defesa",
-    tacticalState.opponentFormation || "?"
-  );
-
   // HUD
   document.getElementById("hud-formations").textContent =
     `Adversário: ${tacticalState.opponentFormation} | Palmeiras: ${tacticalState.palFormation}`;
@@ -458,7 +422,7 @@ async function sendVisionTactic() {
       return;
     }
 
-    const fieldImage = canvas.toDataURL("image/png");
+    const fieldImage = makeVisionSnapshot();
     const possession = typeof getCurrentPossession === "function"
       ? getCurrentPossession()
       : "verde";
@@ -690,62 +654,103 @@ function getCurrentPossession() {
     // MODO PRO - Função ÚNICA
     // Vision + Analyze + Render
     // ======================
-    async function updateTacticalState() {
-
+async function updateTacticalState() {
   try {
     aiBtn.disabled = true;
     aiBtn.textContent = "⌛ IA Calculando...";
 
-    const possession = getCurrentPossession();   // "verde" ou "preto"
-    const ball = getBall();
-    const green = getPalmeirasPositions();
-    const black = getOpponentPositions();
+    const payload = {
+      fieldImage: makeVisionSnapshot(),
+      green: getPalmeirasPositions(),
+      black: getOpponentPositions(),
+      ball: getBall(),
+      possession: getCurrentPossession()
+    };
 
-    // === 1) GPT-VISION (imagem do campo)
-    const vision = await sendVisionTactic();  // já usa makeVisionSnapshot()
-
-    // === 2) ANALYZE (decisão tática do backend)
-    const res = await fetch("/ai/analyze", {
+    const res = await fetch("/ai/tactical-auto", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        green,
-        black,
-        ball,
-        possession,
-        opponentFormationVision: vision?.opponentFormation || null
-      })
+      body: JSON.stringify(payload)
     });
 
-    const analyze = await res.json();
+    const data = await res.json();
 
-    // === 3) ESTADO GLOBAL (tacticalState)
-    tacticalState.possession        = possession;
-    tacticalState.opponentFormation = analyze.opponentFormation;
-    tacticalState.palFormation      = analyze.detectedFormation;
-    tacticalState.phase             = analyze.phase;
-    tacticalState.block             = analyze.bloco;
-    tacticalState.compactacao       = analyze.compactacao;
-    tacticalState.green             = analyze.green; // <-- POSIÇÕES JÁ calculadas!
+    tacticalState.possession        = data.possession;
+    tacticalState.opponentFormation = data.opponentFormation;
+    tacticalState.palFormation      = data.detectedFormation;
+    tacticalState.phase             = data.phase;
+    tacticalState.block             = data.bloco;
+    tacticalState.compactacao       = data.compactacao;
+    tacticalState.green             = data.green;
 
-    // === 4) RENDER (HUD + animação)
-    renderTacticState();  // <<--- ESSENCIAL
+    renderTacticState();
 
-    // mostrar comentário do treinador
-    if (analyze.coachComment) {
-      showAbelCommentPopup(analyze.coachComment);
-    }
+    if (data.coachComment) showAbelCommentPopup(data.coachComment);
 
-  } catch(err) {
-    console.error("Erro no Modo PRO:", err);
-    notify("❌ Erro na IA Tática", 3000);
-
+  } catch (err) {
+    console.error("Erro MODO LIGHT:", err);
   } finally {
     aiBtn.disabled = false;
     aiBtn.textContent = "Análise IA";
   }
 }
 </script>
+<!-- ====================== -->
+<!-- IA AUTOMÁTICA (MODO PRO AUTO) -->
+<!-- ====================== -->
+<script>
+// ======================
+// IA AUTOMÁTICA (somente 1 request ao backend)
+// ======================
+let lastPossession = null;
+let autoRunning = false;
+
+async function autoAnalyzeLoop() {
+  if (autoRunning) return;
+  autoRunning = true;
+
+  const possession = getCurrentPossession();  // "verde" ou "preto"
+
+  const payload = {
+    fieldImage: makeVisionSnapshot(),
+    green: getPalmeirasPositions(),
+    black: getOpponentPositions(),
+    ball: getBall(),
+    possession
+  };
+
+  const res = await fetch("/ai/tactical-auto", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+
+  // só dispara render se mudou mesmo
+  if (data.possession !== lastPossession || data.detectedFormation !== tacticalState.palFormation) {
+
+    tacticalState.possession        = data.possession;
+    tacticalState.opponentFormation = data.opponentFormation;
+    tacticalState.palFormation      = data.detectedFormation;
+    tacticalState.phase             = data.phase;
+    tacticalState.block             = data.bloco;
+    tacticalState.compactacao       = data.compactacao;
+    tacticalState.green             = data.green;
+
+    renderTacticState();
+
+    if (data.coachComment) showAbelCommentPopup(data.coachComment);
+  }
+
+  lastPossession = data.possession;
+  autoRunning = false;
+}
+
+setInterval(autoAnalyzeLoop, 650);
+
+</script>
+
 <script>
 /* === Controle de fullscreen e overlay === */
 const overlay = document.getElementById("fullscreen-overlay");
