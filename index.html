@@ -417,15 +417,27 @@ async function sendVisionTactic() {
     const data = await res.json();
     console.log("📊 Visão Tática (backend):", data);
 
-    // ✅ Se a IA devolveu nova formação para o Palmeiras → move os jogadores
+    // ✅ Move o Palmeiras pela visão da IA
     if (Array.isArray(data.green) && data.green.length > 0) {
+      animateTeam("circle", data.green);
+
       applyDynamicBlocks(
         data.green,
         data.phase?.toLowerCase() || "defesa",
         data.opponentFormation || "4-4-2"
       );
     }
-</script>
+
+    // ✅ Abre popup do treinador
+    if (data.coachComment && typeof showAbelCommentPopup === "function") {
+      showAbelCommentPopup(data.coachComment);
+    }
+
+  } catch (err) {
+    console.error("❌ Erro ao enviar imagem para IA Vision:", err);
+  }
+}
+</script> 
 
 <script>
   // === Funções auxiliares ===

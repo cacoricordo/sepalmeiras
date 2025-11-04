@@ -194,7 +194,7 @@ function abelSpeech(opponentFormation, detectedFormation, phase, bloco, compacta
   return `${pick(intro)} ${pick(corpo)} ${pick(contexto)}`;
 }
 
-// === Endpoint IA ===
+// === Endpoint IA ==
 app.post("/ai/analyze", async (req, res) => {
   try {
     const { green = [], black = [], ball = {}, possession = "preto" } = req.body;
