@@ -518,34 +518,78 @@ async function sendVisionTactic() {
       return;
     }
 
-    // Captura o campo atual como imagem base64
     const fieldImage = canvas.toDataURL("image/png");
     const possession = typeof getCurrentPossession === "function"
       ? getCurrentPossession()
-      : "verde"; // ou "preto", se quiser inverter
+      : "verde";
+
+    const ball = typeof getBall === "function" ? getBall() : null;
 
     console.log("📸 Enviando imagem do campo para análise visual...");
     console.log("🖼️ fieldImage:", fieldImage.substring(0, 100));
 
-    // Envia ao backend
     const res = await fetch("/ai/vision-tactic", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fieldImage, possession })
+      body: JSON.stringify({ fieldImage, possession, ball })
     });
 
     const data = await res.json();
-    console.log("📊 Análise Visual GPT-Vision:", data.visionReply);
+    console.log("📊 Visão Tática (backend):", data);
 
-    if (typeof showAbelCommentPopup === "function") {
-      showAbelCommentPopup(data.visionReply);
-    } else {
-      alert("Abel diz:\n" + data.visionReply);
+    // ✅ Se a IA devolveu nova formação para o Palmeiras → move os jogadores
+    if (data.green && data.phase && data.opponentFormation) {
+      applyDynamicBlocks(data.green, data.phase, data.opponentFormation);
+    }
+
+    // ✅ Só mostra uma mensagem do Abel
+    const comment = data.coachComment || data.visionReply;
+    if (comment && typeof showAbelCommentPopup === "function") {
+      showAbelCommentPopup(comment);
     }
 
   } catch (err) {
     console.error("❌ Erro ao enviar imagem para IA Vision:", err);
   }
+}
+
+// === 🟢 BLOCO TÁTICO DINÂMICO (SOBE / DESCE / COMPACTA) ===
+function applyDynamicBlocks(greenPlayers, phase, opponentFormation) {
+
+  let blockOffsetX = 0;
+
+  // 📌 Regras táticas
+  if (phase === "ataque") {
+    blockOffsetX = -60; // sobe o bloco (vai para o ataque)
+  }
+  else if (phase === "defesa") {
+    blockOffsetX = 60; // recua o bloco
+  }
+  else if (phase === "transicao") {
+    blockOffsetX = -30; // preparação para subir linha
+  }
+
+  // 📌 Se o adversário estiver em bloco BAIXO (recuado)
+  if (opponentFormation === "4-4-2" || opponentFormation === "5-4-1") {
+    blockOffsetX = -90; // empurra o time para o ataque alto
+  }
+
+  // 📌 Se o adversário estiver em pressão alta (4-3-3 ou 4-2-3-1)
+  if (opponentFormation === "4-3-3" || opponentFormation === "4-2-3-1") {
+    blockOffsetX = 90; // recua pra proteger a saída de bola
+  }
+
+  // === APLICA MOVIMENTO COM SUAVIZAÇÃO ===
+  greenPlayers.forEach(p => {
+    const el = document.getElementById(`circle${p.id}`);
+    if (el) {
+      const newX = p.left + blockOffsetX;
+      el.style.left = `${Math.max(20, Math.min(580, newX))}px`;
+      el.style.top = `${p.top}px`;
+    }
+  });
+
+  console.log(`🟢 Bloco tático aplicado: ${phase}, offset: ${blockOffsetX}px`);
 }
 
     // === Atualiza HUD Tático ===

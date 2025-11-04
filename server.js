@@ -212,20 +212,15 @@ app.post("/ai/analyze", async (req, res) => {
   }
 });
 
-// === Nova rota: /ai/vision-tactic (Qwen-VL 2.5 Vision) ===
+// === IA VISUAL + AÇÃO TÁTICA REAL ===
 app.post("/ai/vision-tactic", async (req, res) => {
   try {
-    const { fieldImage, possession } = req.body;
+    const { fieldImage, possession, ball } = req.body;
     const apiKey = process.env.OPENROUTER_KEY;
 
-    if (!apiKey) {
-      return res.status(500).json({ error: "OPENROUTER_KEY ausente no servidor" });
-    }
+    if (!apiKey) return res.status(500).json({ error: "OPENROUTER_KEY ausente" });
 
-    // Log só pra debug
-    console.log("📸 Recebendo imagem do canvas para análise visual...");
-    console.log("⚽ Posse:", possession);
-    console.log("🖼️ Base64:", fieldImage.substring(0, 120), "...");
+    console.log("📸 Imagem recebida, enviando para análise Vision...");
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -234,29 +229,30 @@ app.post("/ai/vision-tactic", async (req, res) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "qwen/qwen2.5-vl-32b-instruct", // ✅ SUPORTA imagem base64 direta!
+        model: "qwen/qwen2.5-vl-32b-instruct",
         messages: [
           {
             role: "system",
             content: `
-              Você é Abel Ferreira o analista tático de futebol do Palmeiras.
-              Interprete a imagem como uma partida real.
-              Identifique:
-              - Formação do time adversário
-              - Formação do Palmeiras (verde/vermelho)
-              - Qual bloco tático o adversário está (alto, médio, baixo)
-              - Fase do Palmeiras (ataque, defesa ou transição)
-              Responda de forma objetiva, SEM enfeitar.
+              Você é um analista tático especialista em Palmeiras.
+              Interprete a imagem como futebol real.
+              Retorne EXATAMENTE neste JSON:
+
+              {
+                "formation_opponent": "4-4-2",
+                "formation_palmeiras": "4-3-3",
+                "phase": "ataque" | "defesa" | "transicao",
+                "comment": "texto curto"
+              }
+
+              Não use markdown. Apenas JSON puro.
             `
           },
           {
             role: "user",
             content: [
-              { type: "text", text: `A posse é do time ${possession}. Analise a imagem:` },
-              {
-                type: "input_image",     // ✅ QWEN aceita isso
-                image_data: fieldImage    // ⬅ base64 do canvas direto!
-              }
+              { type: "text", text: `A posse é do time ${possession}. Aqui está a imagem:` },
+              { type: "input_image", image_data: fieldImage }
             ]
           }
         ]
@@ -264,20 +260,86 @@ app.post("/ai/vision-tactic", async (req, res) => {
     });
 
     const data = await response.json();
+    console.log("📦 Resposta Vision:", JSON.stringify(data, null, 2));
 
-    console.log("📦 Resposta bruta Vision:", JSON.stringify(data, null, 2));
+    let parsed;
+    try {
+      parsed = JSON.parse(data?.choices?.[0]?.message?.content);
+    } catch {
+      return res.json({ error: "Visão não retornou JSON estruturado." });
+    }
 
-    const visionReply =
-      data?.choices?.[0]?.message?.content ||
-      "Não consegui analisar a tática visualmente.";
+    console.log("🧠 Visão interpretou:", parsed);
 
-    console.log("📊 Análise Visual GPT-Vision:", visionReply);
+    // 🔥 MOVE O PALMEIRAS AUTOMATICAMENTE
+    const { formation_palmeiras, phase } = parsed;
+    const { greenAI } = buildGreenFromFormation(
+      formation_palmeiras ?? "4-3-3",
+      ball,
+      phase === "ataque" ? "ataque" : "defesa"
+    );
 
-    res.json({ visionReply });
+    return res.json({
+      opponentFormation: parsed.formation_opponent,
+      chosenFormation: formation_palmeiras,
+      phase: parsed.phase,
+      green: greenAI,
+      coachComment: parsed.comment
+    });
 
   } catch (err) {
     console.error("❌ Erro /ai/vision-tactic:", err);
     res.status(500).json({ error: "Falha na análise visual", details: err.message });
+  }
+});
+
+
+
+// === Socket.IO realtime ===
+io.on("connection", (socket) => {
+  console.log(`🔌 Cliente conectado: ${socket.id}`);
+
+  socket.on("player-move", (data) => socket.broadcast.emit("player-move", data));
+  socket.on("ball-move", (data) => socket.broadcast.emit("ball-move", data));
+  socket.on("path_draw", (data) => socket.broadcast.emit("path_draw", data));
+
+  socket.on("disconnect", () => console.log(`❌ Cliente saiu: ${socket.id}`));
+});
+
+// === Endpoint de chat do Abel (usando OpenRouter) ===
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { message } = req.body;
+    const apiKey = process.env.OPENROUTER_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "OPENROUTER_KEY ausente no servidor" });
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Tu és Abel Ferreira, treinador do Palmeiras. Fala com intensidade, energia e análise tática avançada." },
+          { role: "user", content: message }
+        ],
+        temperature: 0.8,
+        max_tokens: 180
+      })
+    });
+
+    const data = await response.json();
+    const reply = data?.choices?.[0]?.message?.content || "O Abel ficou em silêncio...";
+    res.json({ reply });
+
+  } catch (err) {
+    console.error("Erro no /api/chat:", err);
+    res.status(500).json({ error: "Falha na comunicação com o Abel", details: err.message });
   }
 });
 
