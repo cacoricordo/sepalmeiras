@@ -509,6 +509,47 @@ function detectBallPossession(green, ball) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
+// === Função NOVA: Análise Tática Visual via GPT-4-Vision ===
+async function sendVisionTactic() {
+  try {
+    const canvas = document.querySelector("canvas");
+    if (!canvas) {
+      console.warn("❌ Canvas não encontrado para captura de imagem!");
+      return;
+    }
+
+    // Captura o campo como imagem base64
+    const fieldImage = canvas.toDataURL("image/png");
+
+    // Detecta quem está com a posse (ex: "verde" ou "preto")
+    const possession = typeof getCurrentPossession === "function"
+      ? getCurrentPossession()
+      : "verde";
+
+    // Envia pro backend
+    const res = await fetch("/ai/vision-tactic", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fieldImage, possession })
+    });
+
+    const data = await res.json();
+    console.log("📊 Análise Visual GPT-4-Vision:", data.visionReply);
+
+    // Exibe o comentário do Abel no HUD
+    if (typeof showAbelCommentPopup === "function") {
+      showAbelCommentPopup(data.visionReply);
+    } else {
+      alert("Abel diz:\n" + data.visionReply);
+    }
+
+  } catch (err) {
+    console.error("❌ Erro em sendVisionTactic():", err);
+  }
+}
+
+
+
     // === Atualiza HUD Tático ===
     hudForm.textContent = `Adversário: ${data.opponentFormation || "?"} | Palmeiras: ${data.detectedFormation || "?"}`;
     hudPhase.textContent = `Fase: ${data.phase || "?"}`;
@@ -527,6 +568,8 @@ function detectBallPossession(green, ball) {
     if (data.coachComment) {
       setTimeout(() => showAbelCommentPopup(data.coachComment), 5000);
     }
+
+    await sendVisionTactic();
 
   } catch (err) {
     console.error("AI analyze error:", err);
@@ -806,19 +849,24 @@ if (chatIcon && coachChat) {
 }
 
 // ----------------------------------------------------
-// 2. Lógica para MINIMIZAR/FECHAR (no clique do cabeçalho)
+// 2. Lógica para MINIMIZAR / FECHAR (no clique do cabeçalho)
 // ----------------------------------------------------
 chatHeader.addEventListener("click", () => {
+    // Alterna o estado
     chatOpen = !chatOpen;
-    
-    // Alterna a visibilidade do corpo e input (Minimização interna)
-    chatBody.style.display = chatOpen ? "block" : "none";
-    chatInputArea.style.display = chatOpen ? "flex" : "none";
-    
-    // NOVIDADE: Se o conteúdo for minimizado (chatOpen=false), FECHA a caixa principal
-    if (!chatOpen) {
-        coachChat.style.display = 'none'; // Esconde a caixa de chat
-        chatIcon.style.display = 'flex';  // Mostra o ícone flutuante de volta
+
+    if (chatOpen) {
+        // 🔹 Reabre o chat
+        coachChat.style.display = "flex";    // Mostra a caixa principal
+        chatBody.style.display = "block";    // Mostra corpo do chat
+        chatInputArea.style.display = "flex"; // Mostra área de input
+        chatIcon.style.display = "none";     // Esconde o ícone flutuante
+    } else {
+        // 🔹 Minimiza / fecha o chat
+        chatBody.style.display = "none";      // Esconde mensagens
+        chatInputArea.style.display = "none"; // Esconde input
+        coachChat.style.display = "none";     // Fecha a caixa principal
+        chatIcon.style.display = "flex";      // Mostra o ícone flutuante
     }
 });
 

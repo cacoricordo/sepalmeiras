@@ -212,6 +212,55 @@ app.post("/ai/analyze", async (req, res) => {
   }
 });
 
+// === Nova rota: /ai/vision-tactic (usa GPT-4-Vision para leitura tática real) ===
+app.post("/ai/vision-tactic", async (req, res) => {
+  try {
+    const { fieldImage, possession } = req.body;
+    const apiKey = process.env.OPENROUTER_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "OPENROUTER_KEY ausente no servidor" });
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini-vision", // ✅ modelo com visão
+        messages: [
+          {
+            role: "system",
+            content: `Você é um analista tático de futebol. 
+            Dado um frame de campo com 22 jogadores e a bola,
+            identifique a formação do time adversário e a do Palmeiras (verde/vermelho),
+            e descreva brevemente a fase tática (ataque, defesa ou transição).`
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `A posse é do time ${possession}. Analise a imagem:` },
+              { type: "image_url", image_url: fieldImage }
+            ]
+          }
+        ]
+      })
+    });
+
+    const data = await response.json();
+    const visionReply = data?.choices?.[0]?.message?.content || "Não consegui analisar a tática visualmente.";
+
+    res.json({ visionReply });
+
+  } catch (err) {
+    console.error("Erro /ai/vision-tactic:", err);
+    res.status(500).json({ error: "Falha na análise visual", details: err.message });
+  }
+});
+
+
 // === Socket.IO realtime ===
 io.on("connection", (socket) => {
   console.log(`🔌 Cliente conectado: ${socket.id}`);
