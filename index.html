@@ -442,6 +442,49 @@ async function sendVisionTactic() {
 
 <script>
   // === Funções auxiliares ===
+function makeVisionSnapshot() {
+  const cw = 600, ch = 300;         // mesmo FIELD_WIDTH/HEIGHT do servidor
+  const off = document.createElement("canvas");
+  off.width = cw; off.height = ch;
+  const g = off.getContext("2d");
+
+  // === Campo básico ===
+  g.fillStyle = "#2e7d32"; g.fillRect(0,0,cw,ch);         // gramado
+  g.strokeStyle = "#ffffff"; g.lineWidth = 2;
+  g.strokeRect(1,1,cw-2,ch-2);                             // linhas externas
+  g.beginPath(); g.moveTo(cw/2,0); g.lineTo(cw/2,ch); g.stroke(); // linha do meio
+  g.beginPath(); g.arc(cw/2, ch/2, 46, 0, Math.PI*2); g.stroke(); // círculo central
+
+  // === Áreas (simplificadas) ===
+  g.strokeRect(0, 75, 60, 150);                            // grande esquerda
+  g.strokeRect(cw-60, 75, 60, 150);                        // grande direita
+  g.strokeRect(0, 100, 20, 100);                           // pequena esquerda
+  g.strokeRect(cw-20, 100, 20, 100);                       // pequena direita
+
+  // === Coleta posições atuais ===
+  const green = getPalmeirasPositions();
+  const black = getOpponentPositions();
+  const ball  = getBall();
+
+  // === Desenha ADVERSÁRIO (preto) ===
+  g.fillStyle = "#111111";
+  for (const p of black) {
+    g.beginPath(); g.arc(p.left - 20, p.top - 20, 13, 0, Math.PI*2); g.fill();
+  }
+
+  // === Desenha PALMEIRAS (verde claro) ===
+  g.fillStyle = "#33FFCC";
+  for (const p of green) {
+    g.beginPath(); g.arc(p.left - 20, p.top - 20, 13, 0, Math.PI*2); g.fill();
+  }
+
+  // === Desenha BOLA ===
+  g.fillStyle = "#ffffff";
+  g.beginPath(); g.arc(ball.left - 20, ball.top - 20, 6, 0, Math.PI*2); g.fill();
+
+  return off.toDataURL("image/png");
+}
+
 function getOpponentPositions() {
   const arr = [];
 
@@ -599,6 +642,7 @@ function getCurrentPossession() {
     // === Detecção de posse (pela bola mais próxima) ===
     const closestGreen = Math.min(...green.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
     const closestBlack = Math.min(...black.map(p => Math.hypot(p.left - ball.left, p.top - ball.top)));
+    const fieldImage = makeVisionSnapshot();
     const possession = getCurrentPossession();
 
     const vision = await sendVisionTactic();

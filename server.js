@@ -231,8 +231,8 @@ function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
   for (const pos of formation) {
     const jitter = Math.random() * 4 - 2;
     let baseX = phase === "ataque"
-      ? pos.zone[0] - offsetX
-      : pos.zone[0] + offsetX;
+      ? FIELD_WIDTH - pos.zone[0] - offsetX
+      : FIELD_WIDTH - pos.zone[0] + offsetX;
     baseX = Math.max(20, Math.min(FIELD_WIDTH - 20, baseX));
     greenAI.push({ id: pos.id, left: baseX, top: pos.zone[1] + jitter });
   }
