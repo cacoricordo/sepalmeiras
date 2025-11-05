@@ -406,7 +406,7 @@ function detectOpponentFormationAdvanced(players) {
   const signature = counts.join("-");
 
   // Mapeia assinaturas comuns (sem GK)
-  if (["4-4-2","4-3-3","4-2-3-1","5-4-1","5-3-2","3-5-2","4-5-1", "4-2-4", "3-4-3"].includes(signature)) return signature;
+  if (["4-4-2","4-3-3","4-2-3-1","4-2-4","3-5-2","5-4-1","4-5-1","3-4-3", "5-3-2"].includes(signature)) return signature;
 
   // Fallback por terços (sem GK) — menos enviesado
   const FIELD_THIRD = 600 / 3; // mantém coerente com seu FIELD_WIDTH
@@ -424,6 +424,8 @@ function detectOpponentFormationAdvanced(players) {
   if (def === 5 && mid === 3 && att === 2) return "5-3-2";
   if (def === 4 && mid === 2 && att === 4) return "4-2-4";
   if (def === 3 && mid === 4 && att === 3) return "3-4-3";
+  if (def === 5 && mid === 3 && att === 2) return "5-3-2";
+  if (def === 4 && mid === 5 && att === 1) return "4-5-1";
 
   // Último fallback neutro (melhor que fixar 4-4-2)
   return "4-2-3-1";
@@ -458,7 +460,7 @@ function chooseCounterFormation(opponentFormation, possession) {
   }
 }
 
-// === Monta o Palmeiras (direita → esquerda) ===
+// === Monta o Verde (direita → esquerda) ===
 function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
   const formation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
   const greenAI = [];
@@ -488,7 +490,7 @@ function buildGreenFromFormation(formationKey, ball, phase = "defesa") {
   return { greenAI };
 }
 
-// === Fala do Abel ===
+// === Fala do Treinador ===
 let lastFormation = "";
 let lastPhase = "";
 function abelSpeech(opponentFormation, detectedFormation, phase, bloco, compactacao) {
@@ -551,7 +553,7 @@ app.post("/ai/vision-tactic", async (req, res) => {
           {
             role: "system",
             content:  `
-Você é um analista tático. Analise APENAS o time PRETO (adversário) na imagem. 
+Você é um analista tático. "Soccer's Scout analyst" Analise APENAS o time PRETO (adversário) na imagem. 
 Ignore o time VERDE (Palmeiras) para a formação do adversário.
 
 LEGENDA DA IMAGEM:
@@ -561,7 +563,7 @@ LEGENDA DA IMAGEM:
 - Dimensão do campo: 600x300
 
 CONDIÇÕES:
-- O adversário (preto) DEFENDE à DIREITA e ATACA da DIREITA para a ESQUERDA.
+- O adversário (preto) DEFENDE à ESQUERDA e ATACA da ESQUERDA para a DIREITA.
 - NÃO conte o goleiro na formação (apenas linhas de linha/linha/linha).
 - Use SOMENTE estas formações para o adversário:
   "4-4-2", "4-3-3", "4-2-3-1", "4-2-4", "3-5-2", "5-4-1", "4-5-1", "3-4-3", "5-3-2".
@@ -573,7 +575,7 @@ FORMATO EXATO:
   "formationOpponent": "4-4-2",
   "formationPalmeiras": "4-3-3",
   "phase": "ataque" | "defesa" | "transicao",
-  "comment": "texto curto"
+  "comment": "texto mediano"
 }
 `
           },
